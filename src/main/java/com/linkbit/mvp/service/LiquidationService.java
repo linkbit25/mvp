@@ -3,6 +3,7 @@ package com.linkbit.mvp.service;
 import com.linkbit.mvp.domain.*;
 import com.linkbit.mvp.repository.*;
 import lombok.RequiredArgsConstructor;
+import com.linkbit.mvp.service.BtcPriceService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -20,7 +21,7 @@ public class LiquidationService {
     private final LoanRepository loanRepository;
     private final LoanLiquidationRepository loanLiquidationRepository;
     private final LoanLedgerRepository loanLedgerRepository;
-    private final WazirXService wazirXService;
+    private final BtcPriceService btcPriceService;
 
     @Transactional
     public void executeLiquidation(UUID loanId) {
@@ -32,7 +33,7 @@ public class LiquidationService {
         }
 
         // 1. Fetch fresh BTC price
-        BigDecimal btcPrice = wazirXService.getCurrentBtcPrice();
+        BigDecimal btcPrice = btcPriceService.getCurrentBtcPrice();
         if (btcPrice == null || btcPrice.compareTo(BigDecimal.ZERO) <= 0) {
             throw new RuntimeException("Failed to fetch valid BTC price for liquidation.");
         }

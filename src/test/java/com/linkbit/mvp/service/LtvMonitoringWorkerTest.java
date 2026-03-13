@@ -45,7 +45,7 @@ public class LtvMonitoringWorkerTest {
     private LoanMarginCallRepository marginCallRepository;
 
     @MockBean
-    private WazirXService WazirXService;
+    private BtcPriceService btcPriceService;
 
     private Loan activeLoan;
 
@@ -88,7 +88,7 @@ public class LtvMonitoringWorkerTest {
     void shouldMaintainActiveIfLtvBelowMargin() {
         // BTC = 6,000,000 -> 0.02 BTC = 120,000 INR
         // 100,000 / 120,000 = ~83.33% LTV (above 80 margin... wait, let's bump the price to make it safe)
-        when(WazirXService.getCurrentBtcPrice()).thenReturn(new BigDecimal("7000000.00"));
+        when(btcPriceService.getCurrentBtcPrice()).thenReturn(new BigDecimal("8000000.00")); // 0.02 = 160,000 -> 62.5% LTV
         // BTC = 7,000,000 -> 0.02 BTC = 140,000 INR -> 100,000/140,000 = ~71.4% LTV (Safe!)
 
         worker.monitorLtvLevels();
@@ -104,7 +104,7 @@ public class LtvMonitoringWorkerTest {
     @Test
     void shouldTransitionToMarginCall() {
         // 100,000 / (0.02 * 6,000,000) = 83.33% LTV. Margin is 80%.
-        when(WazirXService.getCurrentBtcPrice()).thenReturn(new BigDecimal("6000000.00"));
+        when(btcPriceService.getCurrentBtcPrice()).thenReturn(new BigDecimal("6000000.00"));
 
         worker.monitorLtvLevels();
 
@@ -120,7 +120,7 @@ public class LtvMonitoringWorkerTest {
     @Test
     void shouldTransitionToLiquidationEligible() {
         // 100,000 / (0.02 * 5,000,000) = 100% LTV. Liq is 90%.
-        when(WazirXService.getCurrentBtcPrice()).thenReturn(new BigDecimal("5000000.00"));
+        when(btcPriceService.getCurrentBtcPrice()).thenReturn(new BigDecimal("5000000.00"));
 
         worker.monitorLtvLevels();
 
@@ -139,7 +139,7 @@ public class LtvMonitoringWorkerTest {
         loanRepository.save(activeLoan);
 
         // Price goes to moon 
-        when(WazirXService.getCurrentBtcPrice()).thenReturn(new BigDecimal("8000000.00")); // 0.02 = 160,000 -> 62.5% LTV
+        when(btcPriceService.getCurrentBtcPrice()).thenReturn(new BigDecimal("8000000.00")); // 0.02 = 160,000 -> 62.5% LTV
 
         worker.monitorLtvLevels();
 

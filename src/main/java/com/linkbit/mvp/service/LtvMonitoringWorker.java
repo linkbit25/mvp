@@ -4,6 +4,7 @@ import com.linkbit.mvp.domain.*;
 import com.linkbit.mvp.repository.LoanLtvHistoryRepository;
 import com.linkbit.mvp.repository.LoanMarginCallRepository;
 import com.linkbit.mvp.repository.LoanRepository;
+import com.linkbit.mvp.service.BtcPriceService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -23,7 +24,7 @@ public class LtvMonitoringWorker {
     private final LoanRepository loanRepository;
     private final LoanLtvHistoryRepository ltvHistoryRepository;
     private final LoanMarginCallRepository marginCallRepository;
-    private final WazirXService WazirXService;
+    private final BtcPriceService btcPriceService;
     private final ChatService chatService;
 
     @Scheduled(fixedRate = 1000)
@@ -31,7 +32,7 @@ public class LtvMonitoringWorker {
     public void monitorLtvLevels() {
         BigDecimal currentBtcPrice;
         try {
-            currentBtcPrice = WazirXService.getCurrentBtcPrice();
+            currentBtcPrice = btcPriceService.getCurrentBtcPrice();
         } catch (Exception e) {
             log.error("Failed to fetch BTC price", e);
             return;

@@ -7,6 +7,7 @@ import com.linkbit.mvp.repository.EscrowAccountRepository;
 import com.linkbit.mvp.repository.LoanMarginCallRepository;
 import com.linkbit.mvp.repository.LoanRepository;
 import com.linkbit.mvp.repository.UserRepository;
+import com.linkbit.mvp.service.BtcPriceService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
@@ -27,7 +28,7 @@ public class EscrowService {
     private final BitcoinTransactionRepository bitcoinTransactionRepository;
     private final LoanMarginCallRepository marginCallRepository;
     private final UserRepository userRepository;
-    private final WazirXService WazirXService;
+    private final BtcPriceService btcPriceService;
     private final ChatService chatService;
 
     @Transactional
@@ -191,7 +192,7 @@ public class EscrowService {
         escrowAccount.setCurrentBalanceSats(totalSatsNow);
         escrowAccountRepository.save(escrowAccount);
 
-        BigDecimal currentBtcPrice = WazirXService.getCurrentBtcPrice();
+        BigDecimal currentBtcPrice = btcPriceService.getCurrentBtcPrice();
         BigDecimal newBtcAmount = new BigDecimal(totalSatsNow).divide(new BigDecimal("100000000"), 10, RoundingMode.HALF_UP);
         BigDecimal collateralValueInr = newBtcAmount.multiply(currentBtcPrice);
         
@@ -235,7 +236,7 @@ public class EscrowService {
     }
 
     private boolean validateCollateralAmount(Loan loan, long currentSats) {
-        BigDecimal btcPriceInr = WazirXService.getCurrentBtcPrice();
+        BigDecimal btcPriceInr = btcPriceService.getCurrentBtcPrice();
         BigDecimal expectedLtv = new BigDecimal(loan.getExpectedLtvPercent()).divide(new BigDecimal("100"), 4, RoundingMode.HALF_UP);
         
         // Target Fiat Value needed = Principal / expected LTV

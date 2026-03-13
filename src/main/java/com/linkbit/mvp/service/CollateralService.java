@@ -4,6 +4,7 @@ import com.linkbit.mvp.domain.*;
 import com.linkbit.mvp.dto.TopUpCollateralRequest;
 import com.linkbit.mvp.dto.VerifyTopUpRequest;
 import com.linkbit.mvp.repository.*;
+import com.linkbit.mvp.service.BtcPriceService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -25,7 +26,7 @@ public class CollateralService {
     private final BitcoinTransactionRepository bitcoinTransactionRepository;
     private final EscrowAccountRepository escrowAccountRepository;
     private final LoanLedgerRepository loanLedgerRepository;
-    private final WazirXService WazirXService;
+    private final BtcPriceService btcPriceService;
     private final LoanMarginCallRepository marginCallRepository;
 
     @Transactional
@@ -89,7 +90,7 @@ public class CollateralService {
         BigDecimal newCollateralAmount = loan.getCollateralBtcAmount().add(addedBtc);
         loan.setCollateralBtcAmount(newCollateralAmount);
 
-        BigDecimal currentBtcPrice = WazirXService.getCurrentBtcPrice();
+        BigDecimal currentBtcPrice = btcPriceService.getCurrentBtcPrice();
         if (currentBtcPrice != null && currentBtcPrice.compareTo(BigDecimal.ZERO) > 0) {
             BigDecimal collateralValueInr = newCollateralAmount.multiply(currentBtcPrice);
             loan.setCollateralValueInr(collateralValueInr);

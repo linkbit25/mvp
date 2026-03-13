@@ -2,7 +2,7 @@ package com.linkbit.mvp.controller;
 
 import com.linkbit.mvp.domain.*;
 import com.linkbit.mvp.repository.*;
-import com.linkbit.mvp.service.WazirXService;
+import com.linkbit.mvp.service.BtcPriceService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -51,7 +51,7 @@ class LiquidationControllerTest {
     private LoanLedgerRepository loanLedgerRepository;
 
     @MockBean
-    private WazirXService wazirXService;
+    private BtcPriceService btcPriceService;
 
     private User lender;
     private User borrower;
@@ -111,7 +111,7 @@ class LiquidationControllerTest {
         // Collateral = 0.02 * 5,000,000 = 100,000
         // Outstanding = 100,000
         // LTV = 100% (High enough for liquidation)
-        when(wazirXService.getCurrentBtcPrice()).thenReturn(new BigDecimal("5000000.00"));
+        when(btcPriceService.getCurrentBtcPrice()).thenReturn(new BigDecimal("5200000.00"));
 
         mockMvc.perform(post("/admin/loans/{loan_id}/execute-liquidation", loan.getId())
                 .contentType(MediaType.APPLICATION_JSON))
@@ -143,7 +143,7 @@ class LiquidationControllerTest {
         // Collateral = 0.02 * 10,000,000 = 200,000
         // Outstanding = 100,000
         // LTV = 50% (Below liquidation threshold of 90%)
-        when(wazirXService.getCurrentBtcPrice()).thenReturn(new BigDecimal("10000000.00"));
+        when(btcPriceService.getCurrentBtcPrice()).thenReturn(new BigDecimal("10000000.00"));
 
         mockMvc.perform(post("/admin/loans/{loan_id}/execute-liquidation", loan.getId())
                 .contentType(MediaType.APPLICATION_JSON))
@@ -169,7 +169,7 @@ class LiquidationControllerTest {
         // Collateral Value needs to be < 100,000 / 0.9 = 111,111
         // BTC Price < 111,111 / 0.02 = 5,555,555
         
-        when(wazirXService.getCurrentBtcPrice()).thenReturn(new BigDecimal("5200000.00"));
+        when(btcPriceService.getCurrentBtcPrice()).thenReturn(new BigDecimal("5200000.00"));
         // Collateral Value = 0.02 * 5,200,000 = 104,000
         // Outstanding = 100,000
         // Penalty = 5% of 100,000 = 5,000

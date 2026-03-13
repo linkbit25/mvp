@@ -1,6 +1,6 @@
 package com.linkbit.mvp.controller;
 
-import com.linkbit.mvp.service.WazirXService;
+import com.linkbit.mvp.service.BtcPriceService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -15,11 +15,11 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class BtcPriceController {
 
-    private final WazirXService WazirXService;
+    private final BtcPriceService btcPriceService;
 
     @GetMapping("/price")
     public ResponseEntity<Map<String, BigDecimal>> getCurrentPrice() {
-        BigDecimal price = WazirXService.getCurrentBtcPrice();
+        BigDecimal price = btcPriceService.getCurrentBtcPrice();
         return ResponseEntity.ok(Map.of("inr", price));
     }
 }

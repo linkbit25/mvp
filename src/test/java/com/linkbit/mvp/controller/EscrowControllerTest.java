@@ -10,7 +10,7 @@ import com.linkbit.mvp.repository.LoanMarginCallRepository;
 import com.linkbit.mvp.repository.LoanOfferRepository;
 import com.linkbit.mvp.repository.LoanRepository;
 import com.linkbit.mvp.repository.UserRepository;
-import com.linkbit.mvp.service.WazirXService;
+import com.linkbit.mvp.service.BtcPriceService;
 import com.linkbit.mvp.service.JwtService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -69,7 +69,7 @@ public class EscrowControllerTest {
     private JwtService jwtService;
 
     @MockBean
-    private WazirXService WazirXService;
+    private BtcPriceService btcPriceService;
 
     private User borrower;
     private User lender;
@@ -162,7 +162,7 @@ public class EscrowControllerTest {
     @Test
     void shouldVerifyCollateralLtvAndLock() throws Exception {
         // Setup mock price: 1 BTC = ₹5,500,000
-        Mockito.when(WazirXService.getCurrentBtcPrice()).thenReturn(new BigDecimal("5500000.00"));
+        Mockito.when(btcPriceService.getCurrentBtcPrice()).thenReturn(new BigDecimal("5500000.00"));
 
         // Generate Escrow
         mockMvc.perform(post("/loans/" + loan.getId() + "/escrow/generate")
@@ -194,7 +194,7 @@ public class EscrowControllerTest {
 
     @Test
     void shouldRefuseLockingWhenUndercollateralized() throws Exception {
-        Mockito.when(WazirXService.getCurrentBtcPrice()).thenReturn(new BigDecimal("5500000.00"));
+        Mockito.when(btcPriceService.getCurrentBtcPrice()).thenReturn(new BigDecimal("5500000.00"));
 
         mockMvc.perform(post("/loans/" + loan.getId() + "/escrow/generate")
                 .header("Authorization", borrowerToken));
@@ -248,7 +248,7 @@ public class EscrowControllerTest {
     @Test
     void shouldVerifyTopupAndResolveMarginCall() throws Exception {
         // Setup mock price: 1 BTC = ₹5,500,000
-        Mockito.when(WazirXService.getCurrentBtcPrice()).thenReturn(new BigDecimal("5500000.00"));
+        Mockito.when(btcPriceService.getCurrentBtcPrice()).thenReturn(new BigDecimal("5500000.00"));
 
         mockMvc.perform(post("/loans/" + loan.getId() + "/escrow/generate")
                 .header("Authorization", borrowerToken))
