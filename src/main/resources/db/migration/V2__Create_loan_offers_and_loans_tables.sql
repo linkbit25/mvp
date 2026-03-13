@@ -1,6 +1,3 @@
-CREATE TYPE loan_offer_status AS ENUM ('OPEN', 'PAUSED', 'CLOSED');
-CREATE TYPE loan_status AS ENUM ('NEGOTIATING', 'AGREED', 'ACTIVE', 'DEFAULTED', 'CLOSED');
-
 CREATE TABLE loan_offers (
     id UUID PRIMARY KEY,
     lender_id UUID NOT NULL,
@@ -8,13 +5,14 @@ CREATE TABLE loan_offers (
     interest_rate DECIMAL(5, 2) NOT NULL,
     expected_ltv_percent INT NOT NULL,
     tenure_days INT NOT NULL,
-    status loan_offer_status NOT NULL DEFAULT 'OPEN',
-    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    status VARCHAR(50) NOT NULL DEFAULT 'OPEN',
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT fk_lender
         FOREIGN KEY(lender_id)
         REFERENCES users(id)
-        ON DELETE CASCADE
+        ON DELETE CASCADE,
+    CONSTRAINT loan_offer_status_check CHECK (status IN ('OPEN', 'PAUSED', 'CLOSED'))
 );
 
 CREATE TABLE loans (
@@ -25,9 +23,9 @@ CREATE TABLE loans (
     principal_amount DECIMAL(19, 2) NOT NULL,
     interest_rate DECIMAL(5, 2) NOT NULL,
     tenure_days INT NOT NULL,
-    status loan_status NOT NULL DEFAULT 'NEGOTIATING',
-    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    status VARCHAR(50) NOT NULL DEFAULT 'NEGOTIATING',
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT fk_offer
         FOREIGN KEY(offer_id)
         REFERENCES loan_offers(id)
@@ -39,5 +37,6 @@ CREATE TABLE loans (
     CONSTRAINT fk_loan_borrower
         FOREIGN KEY(borrower_id)
         REFERENCES users(id)
-        ON DELETE CASCADE
+        ON DELETE CASCADE,
+    CONSTRAINT loan_status_check CHECK (status IN ('NEGOTIATING', 'AGREED', 'ACTIVE', 'DEFAULTED', 'CLOSED'))
 );

@@ -1,14 +1,13 @@
 -- Update loan_status enum to append MARGIN_CALL and LIQUIDATION_ELIGIBLE
-ALTER TABLE loans ALTER COLUMN status VARCHAR(255) CHECK (status IN ('NEGOTIATING', 'AWAITING_SIGNATURES', 'AWAITING_FEE', 'AWAITING_COLLATERAL', 'COLLATERAL_LOCKED', 'AGREED', 'ACTIVE', 'DEFAULTED', 'CLOSED', 'CANCELLED', 'DISPUTE_OPEN', 'LIQUIDATED', 'REPAID', 'MARGIN_CALL', 'LIQUIDATION_ELIGIBLE'));
+ALTER TABLE loans DROP CONSTRAINT IF EXISTS loan_status_check;
+ALTER TABLE loans ADD CONSTRAINT loan_status_check CHECK (status IN ('NEGOTIATING', 'AWAITING_SIGNATURES', 'AWAITING_FEE', 'AWAITING_COLLATERAL', 'COLLATERAL_LOCKED', 'AGREED', 'ACTIVE', 'DEFAULTED', 'CLOSED', 'CANCELLED', 'DISPUTE_OPEN', 'LIQUIDATED', 'REPAID', 'MARGIN_CALL', 'LIQUIDATION_ELIGIBLE'));
 
 -- Add LTV monitoring fields to loans table
-ALTER TABLE loans
-    ADD COLUMN collateral_btc_amount DECIMAL,
-    ADD COLUMN collateral_value_inr DECIMAL,
-    ADD COLUMN current_ltv_percent DECIMAL,
-    ADD COLUMN last_price_update TIMESTAMP,
-    ADD COLUMN margin_call_ltv_percent INT,
-    ADD COLUMN liquidation_ltv_percent INT;
+ALTER TABLE loans ADD COLUMN collateral_btc_amount DECIMAL;
+ALTER TABLE loans ADD COLUMN collateral_value_inr DECIMAL;
+ALTER TABLE loans ADD COLUMN current_ltv_percent DECIMAL;
+ALTER TABLE loans ADD COLUMN last_price_update TIMESTAMP;
+-- Note: margin_call_ltv_percent and liquidation_ltv_percent were already added in V3
 
 -- Create Loan LTV History tracking table
 CREATE TABLE loan_ltv_history (

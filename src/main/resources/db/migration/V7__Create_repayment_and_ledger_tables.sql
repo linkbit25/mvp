@@ -1,11 +1,11 @@
 -- Update loan_status enum to append REPAID
-ALTER TABLE loans ALTER COLUMN status VARCHAR(255) CHECK (status IN ('NEGOTIATING', 'AWAITING_SIGNATURES', 'AWAITING_FEE', 'AWAITING_COLLATERAL', 'COLLATERAL_LOCKED', 'AGREED', 'ACTIVE', 'DEFAULTED', 'CLOSED', 'CANCELLED', 'DISPUTE_OPEN', 'LIQUIDATED', 'REPAID'));
+ALTER TABLE loans DROP CONSTRAINT IF EXISTS loan_status_check;
+ALTER TABLE loans ADD CONSTRAINT loan_status_check CHECK (status IN ('NEGOTIATING', 'AWAITING_SIGNATURES', 'AWAITING_FEE', 'AWAITING_COLLATERAL', 'COLLATERAL_LOCKED', 'AGREED', 'ACTIVE', 'DEFAULTED', 'CLOSED', 'CANCELLED', 'DISPUTE_OPEN', 'LIQUIDATED', 'REPAID'));
 
 -- Add outstanding balance fields to loans table
-ALTER TABLE loans
-    ADD COLUMN principal_outstanding DECIMAL,
-    ADD COLUMN interest_outstanding DECIMAL,
-    ADD COLUMN total_outstanding DECIMAL;
+ALTER TABLE loans ADD COLUMN principal_outstanding DECIMAL;
+ALTER TABLE loans ADD COLUMN interest_outstanding DECIMAL;
+ALTER TABLE loans ADD COLUMN total_outstanding DECIMAL;
 
 -- Create loan_emis table
 CREATE TABLE loan_emis (
