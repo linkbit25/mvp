@@ -1,0 +1,19 @@
+package com.linkbit.mvp.domain;
+
+public enum LoanStatus {
+    NEGOTIATING,
+    AWAITING_SIGNATURES,
+    AWAITING_FEE,
+    AWAITING_COLLATERAL,
+    COLLATERAL_LOCKED,
+    AGREED,
+    ACTIVE,
+    DEFAULTED,
+    CLOSED,
+    CANCELLED,
+    DISPUTE_OPEN,
+    LIQUIDATED,
+    REPAID,
+    MARGIN_CALL,
+    LIQUIDATION_ELIGIBLE
+}

@@ -1,0 +1,53 @@
+# Verification of User Authentication & Identity Foundation (Story 1)
+
+I have checked the codebase to verify the implementation of the core identity layer for the LinkBit platform. The story is fully complete and working as expected.
+
+## Changes Verified
+
+- **Database Migrations:** The [V1__Create_user_and_kyc_tables.sql](file:///d:/LB/mvp/src/main/resources/db/migration/V1__Create_user_and_kyc_tables.sql) Flyway script successfully creates the `users`, `user_kyc_details`, and `password_reset_token` tables matching the schema requirements. `kyc_status` defaults to `PENDING`.
+- **Registration (`/auth/register`):** Collects the necessary user info, securely hashes passwords using BCrypt, and persists both core user records and linked KYC details.
+- **Login (`/auth/login`):** Validates credentials and returns JWT `accessToken`, `refreshToken`, `userId`, and `kycStatus`.
+- **Profile Retreval (`/auth/me`):** Retrieves the authenticated user context and returns full profile data along with bank details.
+- **Password Reset Flow:** Works across `/auth/password/forgot` and `/auth/password/reset` endpoints using UUID-based tokens with a 15-minute expiry.
+- **Security & Authorization:** Configuration in [SecurityConfig.java](file:///d:/LB/mvp/src/main/java/com/linkbit/mvp/config/SecurityConfig.java) enforces correct path restrictions (`permitAll` on auth routes) and integrates a stateless `JwtAuthenticationFilter`. 
+
+## Validation Results
+
+- **Automated Testing:** I ran the Maven test suite (`.\mvnw test`). The project compiled successfully, and all integration tests—including [AuthControllerTest](file:///d:/LB/mvp/src/test/java/com/linkbit/mvp/controller/AuthControllerTest.java#21-117) which directly tests [register](file:///d:/LB/mvp/src/main/java/com/linkbit/mvp/controller/AuthController.java#19-24) and [login](file:///d:/LB/mvp/src/main/java/com/linkbit/mvp/controller/AuthController.java#25-29) edge cases—passed without issues.
+- **Implementation Status:** The criteria in the Definition of Done have been correctly fulfilled. No further modifications are required.
+
+# Verification of Loan Offer Marketplace (Story 2)
+
+I have verified the implementation of the Loan Offer Marketplace layer for the LinkBit platform. The story is fully complete and working as expected.
+
+## Changes Verified
+
+- **Database Migrations:** The [V2__Create_loan_offers_and_loans_tables.sql](file:///d:/LB/mvp/src/main/resources/db/migration/V2__Create_loan_offers_and_loans_tables.sql) correctly sets up the `loan_offers` and `loans` tables. It enforces `ON DELETE CASCADE` constraints and correct ENUM states (`OPEN`, `PAUSED`, `CLOSED`).
+- **Create Loan Offer (`POST /offers`):** Only users with `kyc_status = VERIFIED` can create offers. The correct `loan_amount_inr`, `interest_rate`, `expected_ltv_percent`, and `tenure_days` are properly enforced with `OPEN` state as default.
+- **Browse Offers (`GET /offers`):** Includes functioning logic to filter by `amount`, `tenure_days`, `interest_rate`, and `expected_ltv`. Automatically returns only `OPEN` offers ordered by lowest `interest_rate` first.
+- **Edit Offers (`PUT /offers/{offerId}`):** Correctly checks lender ownership, requires the offer to be `OPEN`, and strictly prevents editing if negotiations already exist.
+- **Connect Borrower (`POST /loans/connect`):** Generates a loan record with `NEGOTIATING` status, linking borrower and lender appropriately, whilst keeping the offer itself `OPEN`.
+- **Anonymity Details:** The JSON response properly obfuscates lender identity by returning solely the `lender_pseudonym`, complying with platform rules.
+
+## Validation Results
+
+- **Automated Testing:** Ran the isolated tests using `.\mvnw test -Dtest=LoanMarketplaceControllerTest`. Assessed endpoints through the test suites which successfully pass all scenarios including blocked non-verified users, filtering, ordering, and mapping of the expected properties.
+- **Implementation Status:** The criteria in the Definition of Done have been correctly fulfilled. No further modifications are required.
+
+# Verification of Loan Negotiation, Contract Formation & Digital Signatures (Story 3)
+
+I have verified the implementation of the Loan Negotiation, Contract Formation, and Signature layer for the LinkBit platform. The story is fully complete and working as expected.
+
+## Changes Verified
+
+- **Database Migrations:** The [V3__Create_negotiation_and_update_loans.sql](file:///d:/LB/mvp/src/main/resources/db/migration/V3__Create_negotiation_and_update_loans.sql) adds required statuses (`AWAITING_SIGNATURES`, `AWAITING_FEE`, `CANCELLED`), repayment ENUM (`EMI`, `BULLET`), and creates the `negotiation_messages` table to persist immutable chats.
+- **WebSocket Chat (`/ws/loans/{loan_id}`):** Real-time chat messaging correctly functions through WebSockets, with all conversations stored in `negotiation_messages`.
+- **Live Negotiation Term Sheet (`PUT /loans/{loanId}/terms`):** The lender is successfully able to update terms (principal, interest, tenure, repayment type, expected/margin call/liquidation LTVs). System appropriately validates changes only when the loan status is `NEGOTIATING`.
+- **Contract Finalization (`POST /loans/{loanId}/finalize`):** Lender finalization computes expected repayments, calculates either EMI schedules or Bullet accumulations, and seals the contract via a **SHA256 agreement hash**. Automatically advances the state to `AWAITING_SIGNATURES`.
+- **Digital Signatures (`POST /loans/{loanId}/sign`):** Registers digital string signatures for both lender and borrower independently. The system correctly shifts the loan to `AWAITING_FEE` once both participants have signed.
+- **Cancel Negotiation (`POST /loans/{loanId}/cancel`):** Exclusively grants borrowers the ability to abandon negotiations, restoring the linked offer to `OPEN` while marking the loan track as `CANCELLED`.
+
+## Validation Results
+
+- **Automated Testing:** I ran the testing suites (`.\mvnw test -Dtest=NegotiationControllerTest`). All tests successfully checked constraints, validated term changes, executed contract finalizations (hash generation), signature recording, and proper sequence cascading flows. 
+- **Implementation Status:** The criteria in the Definition of Done have been correctly fulfilled. No further modifications are required.

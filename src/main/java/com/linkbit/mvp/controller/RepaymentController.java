@@ -1,0 +1,45 @@
+package com.linkbit.mvp.controller;
+
+import com.linkbit.mvp.dto.LedgerResponse;
+import com.linkbit.mvp.dto.RepaymentRequest;
+import com.linkbit.mvp.service.RepaymentService;
+import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
+import java.util.UUID;
+
+@RestController
+@RequiredArgsConstructor
+public class RepaymentController {
+
+    private final RepaymentService repaymentService;
+
+    @PostMapping("/loans/{loanId}/repay")
+    public ResponseEntity<Void> submitRepayment(
+            @PathVariable UUID loanId,
+            @Valid @RequestBody RepaymentRequest request,
+            Authentication authentication) {
+        
+        repaymentService.submitRepayment(loanId, authentication.getName(), request);
+        return ResponseEntity.accepted().build();
+    }
+
+    @GetMapping("/loans/{loanId}/ledger")
+    public ResponseEntity<List<LedgerResponse>> getLoanLedger(
+            @PathVariable UUID loanId,
+            Authentication authentication) {
+        
+        List<LedgerResponse> response = repaymentService.getLoanLedger(loanId, authentication.getName());
+        return ResponseEntity.ok(response);
+    }
+
+    @PostMapping("/admin/repayments/{repaymentId}/verify")
+    public ResponseEntity<Void> verifyRepayment(@PathVariable UUID repaymentId) {
+        repaymentService.verifyRepayment(repaymentId);
+        return ResponseEntity.accepted().build();
+    }
+}
