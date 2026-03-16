@@ -15,61 +15,32 @@ import java.util.concurrent.atomic.AtomicReference;
 @Service
 public class BtcPriceService {
 
-    private static final String BINANCE_TICKER_URL =
-            "https://api.binance.com/api/v3/ticker/price?symbol=BTCUSDT";
-    
-    private static final String WAZIRX_USDT_INR_URL =
-            "https://api.wazirx.com/sapi/v1/ticker/24hr?symbol=usdtinr";
+    private static final String COINGECKO_PRICE_URL =
+            "https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=inr";
 
     private final RestTemplate restTemplate;
-
-    // Seeded with a reasonable default so LTV monitoring starts immediately
     private final AtomicReference<BigDecimal> cachedBtcPrice =
-            new AtomicReference<>(new BigDecimal("8200000.00")); // Updated default to more modern levels
+            new AtomicReference<>(new BigDecimal("8200000.00"));
 
     public BtcPriceService(RestTemplateBuilder restTemplateBuilder) {
         this.restTemplate = restTemplateBuilder.build();
     }
 
-    /**
-     * Polls Binance and WazirX every second to calculate the latest BTC/INR market price.
-     * Calculation: BTC/INR = (BTC/USDT from Binance) * (USDT/INR from WazirX)
-     */
-    @Scheduled(fixedRate = 30000)
+    @Scheduled(fixedRate = 1000)
     public void fetchLatestBtcPrice() {
         try {
-            // 1. Fetch BTC/USDT from Binance
-            JsonNode binanceResponse = restTemplate.getForObject(BINANCE_TICKER_URL, JsonNode.class);
-            BigDecimal btcUsdt = null;
-            if (binanceResponse != null && binanceResponse.has("price")) {
-                btcUsdt = new BigDecimal(binanceResponse.get("price").asText());
-            }
-
-            // 2. Fetch USDT/INR from WazirX
-            JsonNode wazirxResponse = restTemplate.getForObject(WAZIRX_USDT_INR_URL, JsonNode.class);
-            BigDecimal usdtInr = null;
-            if (wazirxResponse != null && wazirxResponse.has("lastPrice")) {
-                usdtInr = new BigDecimal(wazirxResponse.get("lastPrice").asText());
-            }
-
-            // 3. Calculate and cache BTC/INR
-            if (btcUsdt != null && btcUsdt.compareTo(BigDecimal.ZERO) > 0 && 
-                usdtInr != null && usdtInr.compareTo(BigDecimal.ZERO) > 0) {
-                
-                BigDecimal latestBtcInr = btcUsdt.multiply(usdtInr).setScale(2, RoundingMode.HALF_UP);
+            JsonNode response = restTemplate.getForObject(COINGECKO_PRICE_URL, JsonNode.class);
+            if (response != null && response.has("bitcoin") && response.get("bitcoin").has("inr")) {
+                BigDecimal latestBtcInr = new BigDecimal(response.get("bitcoin").get("inr").asText())
+                        .setScale(2, RoundingMode.HALF_UP);
                 cachedBtcPrice.set(latestBtcInr);
-                log.info("BTC/INR price updated: {} (Binance BTC/USDT: {}, WazirX USDT/INR: {})", 
-                        latestBtcInr, btcUsdt, usdtInr);
+                log.info("BTC/INR price updated from CoinGecko: {}", latestBtcInr);
             }
         } catch (Exception e) {
-            log.warn("Failed to fetch BTC price: {}", e.getMessage(), e);
+            log.warn("Failed to fetch BTC price: {}", e.getMessage());
         }
     }
 
-    /**
-     * Returns the most recently cached BTC/INR price.
-     * Never null — falls back to seed value on startup.
-     */
     public BigDecimal getCurrentBtcPrice() {
         return cachedBtcPrice.get();
     }

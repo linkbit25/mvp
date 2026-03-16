@@ -29,7 +29,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
 @Transactional
-@WithMockUser(username = "admin", roles = {"ADMIN"})
+@WithMockUser(username = "admin")
 class LiquidationControllerTest {
 
     @Autowired
@@ -111,7 +111,7 @@ class LiquidationControllerTest {
         // Collateral = 0.02 * 5,000,000 = 100,000
         // Outstanding = 100,000
         // LTV = 100% (High enough for liquidation)
-        when(btcPriceService.getCurrentBtcPrice()).thenReturn(new BigDecimal("5200000.00"));
+        when(btcPriceService.getCurrentBtcPrice()).thenReturn(new BigDecimal("5000000.00"));
 
         mockMvc.perform(post("/admin/loans/{loan_id}/execute-liquidation", loan.getId())
                 .contentType(MediaType.APPLICATION_JSON))

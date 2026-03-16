@@ -6,6 +6,7 @@ import com.linkbit.mvp.domain.LoanStatus;
 import com.linkbit.mvp.repository.LoanRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.math.BigDecimal;
@@ -21,15 +22,18 @@ public class CollateralReleaseController {
     private final LoanRepository loanRepository;
 
     @PostMapping("/admin/loans/{loan_id}/release-collateral")
-    public ResponseEntity<Void> releaseCollateral(@PathVariable("loan_id") UUID loanId) {
-        UUID adminId = UUID.randomUUID(); // Mock admin ID for MVP
-        collateralReleaseService.releaseCollateral(loanId, adminId);
+    public ResponseEntity<Void> releaseCollateral(
+            @PathVariable("loan_id") UUID loanId,
+            Authentication authentication) {
+        collateralReleaseService.releaseCollateral(loanId, authentication.getName());
         return ResponseEntity.ok().build();
     }
     
     @GetMapping("/loans/{loan_id}/collateral")
-    public ResponseEntity<Map<String, Object>> getCollateralBalance(@PathVariable("loan_id") UUID loanId) {
-        BigDecimal balance = collateralReleaseService.getCollateralBalance(loanId);
+    public ResponseEntity<Map<String, Object>> getCollateralBalance(
+            @PathVariable("loan_id") UUID loanId,
+            Authentication authentication) {
+        BigDecimal balance = collateralReleaseService.getCollateralBalance(loanId, authentication.getName());
         
         Loan loan = loanRepository.findById(loanId).orElseThrow(() -> new RuntimeException("Loan not found"));
         

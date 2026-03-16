@@ -1,9 +1,20 @@
 package com.linkbit.mvp.service;
 
-import com.linkbit.mvp.domain.*;
-import com.linkbit.mvp.repository.*;
+import com.linkbit.mvp.domain.CollateralRelease;
+import com.linkbit.mvp.domain.EscrowAccount;
+import com.linkbit.mvp.domain.LedgerEntryType;
+import com.linkbit.mvp.domain.Loan;
+import com.linkbit.mvp.domain.LoanLedger;
+import com.linkbit.mvp.domain.LoanStatus;
+import com.linkbit.mvp.domain.User;
+import com.linkbit.mvp.repository.CollateralReleaseRepository;
+import com.linkbit.mvp.repository.EscrowAccountRepository;
+import com.linkbit.mvp.repository.LoanLedgerRepository;
+import com.linkbit.mvp.repository.LoanRepository;
+import com.linkbit.mvp.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -21,9 +32,12 @@ public class CollateralReleaseService {
     private final EscrowAccountRepository escrowAccountRepository;
     private final LoanLedgerRepository loanLedgerRepository;
     private final CollateralReleaseRepository collateralReleaseRepository;
+    private final UserRepository userRepository;
 
     @Transactional
-    public void releaseCollateral(UUID loanId, UUID adminId) {
+    public void releaseCollateral(UUID loanId, String adminEmail) {
+        User admin = userRepository.findByEmail(adminEmail)
+                .orElseThrow(() -> new UsernameNotFoundException("User not found"));
         Loan loan = loanRepository.findById(loanId)
                 .orElseThrow(() -> new IllegalArgumentException("Loan not found: " + loanId));
 
@@ -33,52 +47,54 @@ public class CollateralReleaseService {
 
         EscrowAccount escrow = escrowAccountRepository.findByLoanId(loanId)
                 .orElseThrow(() -> new RuntimeException("Escrow account not found for loan: " + loanId));
-        
-        BigDecimal escrowBalanceBtc = new BigDecimal(escrow.getCurrentBalanceSats()).divide(new BigDecimal("100000000"), 8, RoundingMode.HALF_UP);
-        
-        BigDecimal finalReleaseAmount = escrowBalanceBtc; 
-        
-        // Create Release Record
-        CollateralRelease release = CollateralRelease.builder()
-                .loan(loan)
-                .releasedBtc(finalReleaseAmount)
-                .executedBy(adminId)
-                .build();
-        collateralReleaseRepository.save(release);
+        BigDecimal releaseAmount = toBtc(escrow.getCurrentBalanceSats());
 
-        // Update Loan
+        collateralReleaseRepository.save(CollateralRelease.builder()
+                .loan(loan)
+                .releasedBtc(releaseAmount)
+                .executedBy(admin.getId())
+                .build());
+
         loan.setStatus(LoanStatus.CLOSED);
         loan.setCollateralReleasedAt(LocalDateTime.now());
-        loan.setCollateralReleasedBtc(finalReleaseAmount);
-        
-        // Update Escrow
+        loan.setCollateralReleasedBtc(releaseAmount);
+
         escrow.setCurrentBalanceSats(0L);
         escrowAccountRepository.save(escrow);
 
-        // Ledger Entries
-        createLedgerEntry(loan, LedgerEntryType.COLLATERAL_RELEASED, BigDecimal.ZERO, "Collateral Released: " + finalReleaseAmount + " BTC");
+        createLedgerEntry(loan, LedgerEntryType.COLLATERAL_RELEASED, BigDecimal.ZERO, "Collateral Released: " + releaseAmount + " BTC");
         createLedgerEntry(loan, LedgerEntryType.ESCROW_CLOSED, BigDecimal.ZERO, "Escrow Account Closed");
-        
-        // Update loan status finally
         loanRepository.save(loan);
-        
-        log.info("Collateral released for loan {}. Amount: {} BTC", loanId, finalReleaseAmount);
+
+        log.info("Collateral released for loan {}. Amount: {} BTC", loanId, releaseAmount);
     }
-    
-    public BigDecimal getCollateralBalance(UUID loanId) {
-         EscrowAccount escrow = escrowAccountRepository.findByLoanId(loanId)
-                .orElseThrow(() -> new RuntimeException("Escrow account not found"));
-         
-         return new BigDecimal(escrow.getCurrentBalanceSats()).divide(new BigDecimal("100000000"), 8, RoundingMode.HALF_UP);
+
+    @Transactional(readOnly = true)
+    public BigDecimal getCollateralBalance(UUID loanId, String email) {
+        Loan loan = loanRepository.findById(loanId)
+                .orElseThrow(() -> new RuntimeException("Loan not found"));
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new UsernameNotFoundException("User not found"));
+
+        if (!loan.getBorrower().getId().equals(user.getId()) && !loan.getLender().getId().equals(user.getId())) {
+            throw new RuntimeException("Only participants can view collateral balance");
+        }
+
+        return escrowAccountRepository.findByLoanId(loanId)
+                .map(escrow -> toBtc(escrow.getCurrentBalanceSats()))
+                .orElse(BigDecimal.ZERO.setScale(8, RoundingMode.HALF_UP));
+    }
+
+    private BigDecimal toBtc(long sats) {
+        return new BigDecimal(sats).divide(new BigDecimal("100000000"), 8, RoundingMode.HALF_UP);
     }
 
     private void createLedgerEntry(Loan loan, LedgerEntryType type, BigDecimal amount, String description) {
-         LoanLedger ledger = LoanLedger.builder()
-            .loan(loan)
-            .entryType(type)
-            .amountInr(amount)
-            .notes(description)
-            .build();
-        loanLedgerRepository.save(ledger);
+        loanLedgerRepository.save(LoanLedger.builder()
+                .loan(loan)
+                .entryType(type)
+                .amountInr(amount)
+                .notes(description)
+                .build());
     }
 }

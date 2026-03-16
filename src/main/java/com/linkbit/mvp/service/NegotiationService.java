@@ -1,6 +1,11 @@
 package com.linkbit.mvp.service;
 
-import com.linkbit.mvp.domain.*;
+import com.linkbit.mvp.domain.Loan;
+import com.linkbit.mvp.domain.LoanOffer;
+import com.linkbit.mvp.domain.LoanOfferStatus;
+import com.linkbit.mvp.domain.LoanStatus;
+import com.linkbit.mvp.domain.RepaymentType;
+import com.linkbit.mvp.domain.User;
 import com.linkbit.mvp.dto.UpdateTermsRequest;
 import com.linkbit.mvp.repository.LoanOfferRepository;
 import com.linkbit.mvp.repository.LoanRepository;
@@ -35,7 +40,6 @@ public class NegotiationService {
         if (!loan.getLender().getId().equals(lender.getId())) {
             throw new RuntimeException("Only lender can update terms");
         }
-
         if (loan.getStatus() != LoanStatus.NEGOTIATING) {
             throw new RuntimeException("Loan is not in negotiating status");
         }
@@ -48,11 +52,9 @@ public class NegotiationService {
         loan.setExpectedLtvPercent(request.getExpectedLtvPercent());
         loan.setMarginCallLtvPercent(request.getMarginCallLtvPercent());
         loan.setLiquidationLtvPercent(request.getLiquidationLtvPercent());
-
         loanRepository.save(loan);
 
-        // Notify chat about term update
-        chatService.sendMessage(loanId, lender.getId(), "SYSTEM: Terms updated by lender");
+        chatService.sendSystemMessage(loanId, "SYSTEM: Terms updated by lender");
     }
 
     @Transactional
@@ -63,23 +65,26 @@ public class NegotiationService {
         if (!loan.getLender().getId().equals(lender.getId())) {
             throw new RuntimeException("Only lender can finalize contract");
         }
-
         if (loan.getStatus() != LoanStatus.NEGOTIATING) {
             throw new RuntimeException("Loan is not in negotiating status");
         }
+        if (loan.getRepaymentType() == null || loan.getExpectedLtvPercent() == null
+                || loan.getMarginCallLtvPercent() == null || loan.getLiquidationLtvPercent() == null) {
+            throw new RuntimeException("Loan terms are incomplete");
+        }
 
-        // Calculate repayment
         calculateRepayment(loan);
-
-        // Generate hash
-        String agreementData = buildAgreementData(loan);
-        String hash = generateHash(agreementData);
-        loan.setAgreementHash(hash);
-
+        LocalDateTime finalizedAt = LocalDateTime.now();
+        loan.setAgreementFinalizedAt(finalizedAt);
+        loan.setAgreementHash(generateHash(buildAgreementData(loan, finalizedAt)));
         loan.setStatus(LoanStatus.AWAITING_SIGNATURES);
+
+        LoanOffer offer = loan.getOffer();
+        offer.setStatus(LoanOfferStatus.CLOSED);
+        loanOfferRepository.save(offer);
         loanRepository.save(loan);
 
-        chatService.sendMessage(loanId, lender.getId(), "SYSTEM: Contract finalized. Awaiting signatures.");
+        chatService.sendSystemMessage(loanId, "SYSTEM: Contract finalized. Awaiting signatures.");
     }
 
     @Transactional
@@ -89,6 +94,9 @@ public class NegotiationService {
 
         if (loan.getStatus() != LoanStatus.AWAITING_SIGNATURES) {
             throw new RuntimeException("Loan is not awaiting signatures");
+        }
+        if (loan.getAgreementHash() == null || loan.getAgreementFinalizedAt() == null) {
+            throw new RuntimeException("Agreement must be finalized before signatures");
         }
 
         if (loan.getBorrower().getId().equals(user.getId())) {
@@ -107,9 +115,9 @@ public class NegotiationService {
 
         if (loan.getBorrowerSignature() != null && loan.getLenderSignature() != null) {
             loan.setStatus(LoanStatus.AWAITING_FEE);
-            chatService.sendMessage(loanId, user.getId(), "SYSTEM: Contract signed by both parties. Loan status: AWAITING_FEE");
+            chatService.sendSystemMessage(loanId, "SYSTEM: Contract signed by both parties. Loan status: AWAITING_FEE");
         } else {
-            chatService.sendMessage(loanId, user.getId(), "SYSTEM: Contract signed by " + user.getPseudonym());
+            chatService.sendSystemMessage(loanId, "SYSTEM: Contract signed by " + user.getPseudonym());
         }
 
         loanRepository.save(loan);
@@ -123,7 +131,6 @@ public class NegotiationService {
         if (!loan.getBorrower().getId().equals(user.getId())) {
             throw new RuntimeException("Only borrower can cancel negotiation");
         }
-
         if (loan.getStatus() != LoanStatus.NEGOTIATING) {
             throw new RuntimeException("Cannot cancel loan in current status");
         }
@@ -135,7 +142,7 @@ public class NegotiationService {
         offer.setStatus(LoanOfferStatus.OPEN);
         loanOfferRepository.save(offer);
 
-        chatService.sendMessage(loanId, user.getId(), "SYSTEM: Negotiation cancelled by borrower");
+        chatService.sendSystemMessage(loanId, "SYSTEM: Negotiation cancelled by borrower");
     }
 
     private Loan getLoan(UUID loanId) {
@@ -152,81 +159,58 @@ public class NegotiationService {
         BigDecimal principal = loan.getPrincipalAmount();
         BigDecimal rate = loan.getInterestRate();
         Integer tenureDays = loan.getTenureDays();
-        
+
         if (loan.getRepaymentType() == RepaymentType.BULLET) {
-            // Simple interest: P * (1 + R * days/365)
-            // Wait, R is annual percentage.
-            BigDecimal annualRate = rate.divide(new BigDecimal(100), 10, RoundingMode.HALF_UP);
-            BigDecimal timeInYears = new BigDecimal(tenureDays).divide(new BigDecimal(365), 10, RoundingMode.HALF_UP);
-            BigDecimal interest = principal.multiply(annualRate).multiply(timeInYears);
-            BigDecimal total = principal.add(interest);
-            
-            loan.setTotalRepaymentAmount(total.setScale(2, RoundingMode.HALF_UP));
-            loan.setEmiAmount(total.setScale(2, RoundingMode.HALF_UP)); // Single payment
+            BigDecimal annualRate = rate.divide(new BigDecimal("100"), 10, RoundingMode.HALF_UP);
+            BigDecimal timeInYears = new BigDecimal(tenureDays).divide(new BigDecimal("365"), 10, RoundingMode.HALF_UP);
+            BigDecimal total = principal.add(principal.multiply(annualRate).multiply(timeInYears));
             loan.setEmiCount(1);
-        } else {
-            // EMI calculation
-            // P * r * (1+r)^n / ((1+r)^n - 1)
-            // r = monthly rate = annual / 12 / 100
-            // n = tenure in months = days / 30
-            
-            BigDecimal annualRate = rate.divide(new BigDecimal(100), 10, RoundingMode.HALF_UP);
-            BigDecimal monthlyRate = annualRate.divide(new BigDecimal(12), 10, RoundingMode.HALF_UP);
-            
-            int months = tenureDays / 30;
-            if (months == 0) months = 1; // Min 1 month
-            loan.setEmiCount(months); // Set EMI count if not provided, or validate provided emiCount
-            // User story says emi_count is editable. Let's trust user input or recalc?
-            // "generate EMI schedule if repayment_type = EMI"
-            // Usually EMI is calculated based on P, R, N. emi_count IS N.
-            // So we use emiCount from loan (updated by lender).
-            
-            months = loan.getEmiCount();
-            
-            if (months > 0) {
-                // Formula
-                BigDecimal onePlusR = BigDecimal.ONE.add(monthlyRate);
-                BigDecimal onePlusRToN = onePlusR.pow(months);
-                
-                BigDecimal numerator = principal.multiply(monthlyRate).multiply(onePlusRToN);
-                BigDecimal denominator = onePlusRToN.subtract(BigDecimal.ONE);
-                
-                BigDecimal emi = numerator.divide(denominator, 2, RoundingMode.HALF_UP);
-                
-                loan.setEmiAmount(emi);
-                loan.setTotalRepaymentAmount(emi.multiply(new BigDecimal(months)));
-            }
+            loan.setEmiAmount(total.setScale(2, RoundingMode.HALF_UP));
+            loan.setTotalRepaymentAmount(total.setScale(2, RoundingMode.HALF_UP));
+            return;
         }
+
+        int emiCount = loan.getEmiCount() != null && loan.getEmiCount() > 0 ? loan.getEmiCount() : Math.max(1, tenureDays / 30);
+        loan.setEmiCount(emiCount);
+
+        BigDecimal annualRate = rate.divide(new BigDecimal("100"), 10, RoundingMode.HALF_UP);
+        BigDecimal monthlyRate = annualRate.divide(new BigDecimal("12"), 10, RoundingMode.HALF_UP);
+        if (monthlyRate.compareTo(BigDecimal.ZERO) == 0) {
+            BigDecimal emi = principal.divide(new BigDecimal(emiCount), 2, RoundingMode.HALF_UP);
+            loan.setEmiAmount(emi);
+            loan.setTotalRepaymentAmount(emi.multiply(new BigDecimal(emiCount)));
+            return;
+        }
+
+        BigDecimal onePlusR = BigDecimal.ONE.add(monthlyRate);
+        BigDecimal onePlusRToN = onePlusR.pow(emiCount);
+        BigDecimal emi = principal.multiply(monthlyRate).multiply(onePlusRToN)
+                .divide(onePlusRToN.subtract(BigDecimal.ONE), 2, RoundingMode.HALF_UP);
+
+        loan.setEmiAmount(emi);
+        loan.setTotalRepaymentAmount(emi.multiply(new BigDecimal(emiCount)));
     }
 
-    private String buildAgreementData(Loan loan) {
+    private String buildAgreementData(Loan loan, LocalDateTime finalizedAt) {
         return loan.getBorrower().getId() + ":" +
-               loan.getLender().getId() + ":" +
-               loan.getPrincipalAmount() + ":" +
-               loan.getInterestRate() + ":" +
-               loan.getTenureDays() + ":" +
-               loan.getRepaymentType() + ":" +
-               loan.getEmiCount() + ":" +
-               loan.getEmiAmount() + ":" +
-               loan.getTotalRepaymentAmount() + ":" +
-               loan.getExpectedLtvPercent() + ":" +
-               loan.getMarginCallLtvPercent() + ":" +
-               loan.getLiquidationLtvPercent() + ":" +
-               LocalDateTime.now(); // Timestamp used for uniqueness? Story says "timestamp" in hash content.
-               // Ideally store this timestamp in DB too if we want to re-verify hash.
-               // But loan.getAgreementHash() stores the result.
-               // The input timestamp should be fixed. I'll use updated_at or create a new field?
-               // For MVP, I'll use current time but since I don't store it separately in a field named 'agreement_timestamp',
-               // verification might be impossible later.
-               // However, definition of done says "generate agreement hash".
-               // I'll append a timestamp.
+                loan.getLender().getId() + ":" +
+                loan.getPrincipalAmount() + ":" +
+                loan.getInterestRate() + ":" +
+                loan.getTenureDays() + ":" +
+                loan.getRepaymentType() + ":" +
+                loan.getEmiCount() + ":" +
+                loan.getEmiAmount() + ":" +
+                loan.getTotalRepaymentAmount() + ":" +
+                loan.getExpectedLtvPercent() + ":" +
+                loan.getMarginCallLtvPercent() + ":" +
+                loan.getLiquidationLtvPercent() + ":" +
+                finalizedAt;
     }
 
     private String generateHash(String data) {
         try {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
-            byte[] encodedhash = digest.digest(data.getBytes(StandardCharsets.UTF_8));
-            return bytesToHex(encodedhash);
+            return bytesToHex(digest.digest(data.getBytes(StandardCharsets.UTF_8)));
         } catch (NoSuchAlgorithmException e) {
             throw new RuntimeException("SHA-256 algorithm not found", e);
         }
@@ -234,8 +218,8 @@ public class NegotiationService {
 
     private String bytesToHex(byte[] hash) {
         StringBuilder hexString = new StringBuilder(2 * hash.length);
-        for (int i = 0; i < hash.length; i++) {
-            String hex = Integer.toHexString(0xff & hash[i]);
+        for (byte value : hash) {
+            String hex = Integer.toHexString(0xff & value);
             if (hex.length() == 1) {
                 hexString.append('0');
             }

@@ -57,8 +57,9 @@ class CollateralReleaseControllerTest {
     private Loan loan;
     private User borrower;
     private User lender;
+    private User admin;
     private String borrowerToken;
-    private String lenderToken;
+    private String adminToken;
 
     @BeforeEach
     void setUp() {
@@ -84,7 +85,15 @@ class CollateralReleaseControllerTest {
                 .pseudonym("LenderP")
                 .build();
         userRepository.save(lender);
-        lenderToken = "Bearer " + jwtService.generateToken(lender);
+
+        admin = User.builder()
+                .email("admin@example.com")
+                .password(passwordEncoder.encode("password"))
+                .kycStatus(KycStatus.VERIFIED)
+                .pseudonym("AdminP")
+                .build();
+        userRepository.save(admin);
+        adminToken = "Bearer " + jwtService.generateToken(admin);
 
         LoanOffer offer = LoanOffer.builder()
                 .lender(lender)
@@ -127,7 +136,7 @@ class CollateralReleaseControllerTest {
     @Test
     void shouldReleaseCollateral() throws Exception {
         mockMvc.perform(post("/admin/loans/" + loan.getId() + "/release-collateral")
-                        .header("Authorization", lenderToken) // Admin endpoint, using lender as simulated admin
+                        .header("Authorization", adminToken)
                         .contentType(MediaType.APPLICATION_JSON))
                 .andExpect(status().isOk());
 
@@ -154,7 +163,7 @@ class CollateralReleaseControllerTest {
         loanRepository.save(loan);
 
         mockMvc.perform(post("/admin/loans/" + loan.getId() + "/release-collateral")
-                        .header("Authorization", lenderToken)
+                        .header("Authorization", adminToken)
                         .contentType(MediaType.APPLICATION_JSON))
                 .andExpect(status().isInternalServerError());
     }
@@ -171,7 +180,7 @@ class CollateralReleaseControllerTest {
 
         // After release
         mockMvc.perform(post("/admin/loans/" + loan.getId() + "/release-collateral")
-                        .header("Authorization", lenderToken)
+                        .header("Authorization", adminToken)
                         .contentType(MediaType.APPLICATION_JSON))
                 .andExpect(status().isOk());
 

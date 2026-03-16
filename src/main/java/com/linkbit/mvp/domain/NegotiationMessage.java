@@ -27,7 +27,7 @@ public class NegotiationMessage {
     private Loan loan;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "sender_id", nullable = false)
+    @JoinColumn(name = "sender_id")
     private User sender;
 
     @Column(name = "message_text", nullable = false, columnDefinition = "TEXT")
@@ -41,4 +41,3 @@ public class NegotiationMessage {
     @Column(name = "sent_at", updatable = false)
     private LocalDateTime sentAt;
 }
-

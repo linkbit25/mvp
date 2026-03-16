@@ -25,6 +25,7 @@ import java.util.UUID;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static org.assertj.core.api.Assertions.assertThat;
 
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -153,13 +154,20 @@ class NegotiationControllerTest {
         mockMvc.perform(post("/loans/" + loan.getId() + "/finalize")
                 .header("Authorization", lenderToken))
                 .andExpect(status().isOk());
+
+        Loan updatedLoan = loanRepository.findById(loan.getId()).orElseThrow();
+        assertThat(updatedLoan.getAgreementHash()).isNotBlank();
+        assertThat(updatedLoan.getAgreementFinalizedAt()).isNotNull();
+        assertThat(updatedLoan.getOffer().getStatus()).isEqualTo(LoanOfferStatus.CLOSED);
     }
 
     @Test
     void shouldSignContract() throws Exception {
         // Prepare loan in AWAITING_SIGNATURES state
         loan.setStatus(LoanStatus.AWAITING_SIGNATURES);
-        loan.setRepaymentType(RepaymentType.EMI); // Set required fields for any potential checks
+        loan.setRepaymentType(RepaymentType.EMI);
+        loan.setAgreementHash("hash");
+        loan.setAgreementFinalizedAt(java.time.LocalDateTime.now());
         loanRepository.save(loan);
 
         SignContractRequest request = new SignContractRequest();

@@ -1,6 +1,11 @@
 package com.linkbit.mvp.service;
 
-import com.linkbit.mvp.domain.*;
+import com.linkbit.mvp.domain.KycStatus;
+import com.linkbit.mvp.domain.Loan;
+import com.linkbit.mvp.domain.LoanOffer;
+import com.linkbit.mvp.domain.LoanOfferStatus;
+import com.linkbit.mvp.domain.LoanStatus;
+import com.linkbit.mvp.domain.User;
 import com.linkbit.mvp.dto.CreateOfferRequest;
 import com.linkbit.mvp.dto.OfferResponse;
 import com.linkbit.mvp.repository.LoanOfferRepository;
@@ -24,29 +29,40 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class LoanMarketplaceService {
 
+    private static final List<LoanStatus> BLOCKING_OFFER_STATUSES = List.of(
+            LoanStatus.NEGOTIATING,
+            LoanStatus.AWAITING_SIGNATURES,
+            LoanStatus.AWAITING_FEE,
+            LoanStatus.AWAITING_COLLATERAL,
+            LoanStatus.COLLATERAL_LOCKED,
+            LoanStatus.ACTIVE,
+            LoanStatus.DISPUTE_OPEN,
+            LoanStatus.MARGIN_CALL,
+            LoanStatus.LIQUIDATION_ELIGIBLE,
+            LoanStatus.REPAID,
+            LoanStatus.LIQUIDATED,
+            LoanStatus.CLOSED
+    );
+
     private final LoanOfferRepository loanOfferRepository;
     private final LoanRepository loanRepository;
     private final UserRepository userRepository;
 
     @Transactional
     public void createOffer(String email, CreateOfferRequest request) {
-        User lender = userRepository.findByEmail(email)
-                .orElseThrow(() -> new UsernameNotFoundException("User not found"));
-
+        User lender = getUser(email);
         if (lender.getKycStatus() != KycStatus.VERIFIED) {
             throw new RuntimeException("User is not verified");
         }
 
-        LoanOffer offer = LoanOffer.builder()
+        loanOfferRepository.save(LoanOffer.builder()
                 .lender(lender)
                 .loanAmountInr(request.getLoanAmountInr())
                 .interestRate(request.getInterestRate())
                 .expectedLtvPercent(request.getExpectedLtvPercent())
                 .tenureDays(request.getTenureDays())
                 .status(LoanOfferStatus.OPEN)
-                .build();
-
-        loanOfferRepository.save(offer);
+                .build());
     }
 
     @Transactional(readOnly = true)
@@ -67,15 +83,69 @@ public class LoanMarketplaceService {
             if (expectedLtv != null) {
                 predicates.add(cb.equal(root.get("expectedLtvPercent"), expectedLtv));
             }
-
             return cb.and(predicates.toArray(new Predicate[0]));
         };
 
-        Sort sort = Sort.by(Sort.Direction.ASC, "interestRate");
-
-        return loanOfferRepository.findAll(spec, sort).stream()
+        return loanOfferRepository.findAll(spec, Sort.by(Sort.Direction.ASC, "interestRate")).stream()
                 .map(this::mapToOfferResponse)
                 .collect(Collectors.toList());
+    }
+
+    @Transactional
+    public void editOffer(String email, UUID offerId, CreateOfferRequest request) {
+        User lender = getUser(email);
+        LoanOffer offer = loanOfferRepository.findById(offerId)
+                .orElseThrow(() -> new RuntimeException("Offer not found"));
+
+        if (!offer.getLender().getId().equals(lender.getId())) {
+            throw new RuntimeException("Unauthorized to edit this offer");
+        }
+        if (offer.getStatus() != LoanOfferStatus.OPEN) {
+            throw new RuntimeException("Offer is not OPEN");
+        }
+        if (loanRepository.existsByOfferAndStatusNot(offer, LoanStatus.CANCELLED)) {
+            throw new RuntimeException("Cannot edit offer with existing negotiations");
+        }
+
+        offer.setLoanAmountInr(request.getLoanAmountInr());
+        offer.setInterestRate(request.getInterestRate());
+        offer.setExpectedLtvPercent(request.getExpectedLtvPercent());
+        offer.setTenureDays(request.getTenureDays());
+        loanOfferRepository.save(offer);
+    }
+
+    @Transactional
+    public UUID connectOffer(String email, UUID offerId) {
+        User borrower = getUser(email);
+        LoanOffer offer = loanOfferRepository.findById(offerId)
+                .orElseThrow(() -> new RuntimeException("Offer not found"));
+
+        if (offer.getStatus() != LoanOfferStatus.OPEN) {
+            throw new RuntimeException("Offer is not available");
+        }
+        if (offer.getLender().getId().equals(borrower.getId())) {
+            throw new RuntimeException("Lender cannot connect to their own offer");
+        }
+        if (loanRepository.existsByOfferAndStatusIn(offer, BLOCKING_OFFER_STATUSES)) {
+            throw new RuntimeException("Offer already has an active loan negotiation");
+        }
+
+        Loan savedLoan = loanRepository.save(Loan.builder()
+                .offer(offer)
+                .lender(offer.getLender())
+                .borrower(borrower)
+                .principalAmount(offer.getLoanAmountInr())
+                .interestRate(offer.getInterestRate())
+                .tenureDays(offer.getTenureDays())
+                .expectedLtvPercent(offer.getExpectedLtvPercent())
+                .status(LoanStatus.NEGOTIATING)
+                .build());
+        return savedLoan.getId();
+    }
+
+    private User getUser(String email) {
+        return userRepository.findByEmail(email)
+                .orElseThrow(() -> new UsernameNotFoundException("User not found"));
     }
 
     private OfferResponse mapToOfferResponse(LoanOffer offer) {
@@ -87,63 +157,5 @@ public class LoanMarketplaceService {
                 .expectedLtv(offer.getExpectedLtvPercent())
                 .tenureDays(offer.getTenureDays())
                 .build();
-    }
-
-    @Transactional
-    public void editOffer(String email, UUID offerId, CreateOfferRequest request) {
-        User lender = userRepository.findByEmail(email)
-                .orElseThrow(() -> new UsernameNotFoundException("User not found"));
-
-        LoanOffer offer = loanOfferRepository.findById(offerId)
-                .orElseThrow(() -> new RuntimeException("Offer not found"));
-
-        if (!offer.getLender().getId().equals(lender.getId())) {
-            throw new RuntimeException("Unauthorized to edit this offer");
-        }
-
-        if (offer.getStatus() != LoanOfferStatus.OPEN) {
-            throw new RuntimeException("Offer is not OPEN");
-        }
-
-        if (loanRepository.existsByOffer(offer)) {
-            throw new RuntimeException("Cannot edit offer with existing negotiations");
-        }
-
-        offer.setLoanAmountInr(request.getLoanAmountInr());
-        offer.setInterestRate(request.getInterestRate());
-        offer.setExpectedLtvPercent(request.getExpectedLtvPercent());
-        offer.setTenureDays(request.getTenureDays());
-
-        loanOfferRepository.save(offer);
-    }
-
-    @Transactional
-    public UUID connectOffer(String email, UUID offerId) {
-        User borrower = userRepository.findByEmail(email)
-                .orElseThrow(() -> new UsernameNotFoundException("User not found"));
-
-        LoanOffer offer = loanOfferRepository.findById(offerId)
-                .orElseThrow(() -> new RuntimeException("Offer not found"));
-
-        if (offer.getStatus() != LoanOfferStatus.OPEN) {
-            throw new RuntimeException("Offer is not available");
-        }
-
-        if (offer.getLender().getId().equals(borrower.getId())) {
-            throw new RuntimeException("Lender cannot connect to their own offer");
-        }
-
-        Loan loan = Loan.builder()
-                .offer(offer)
-                .lender(offer.getLender())
-                .borrower(borrower)
-                .principalAmount(offer.getLoanAmountInr())
-                .interestRate(offer.getInterestRate())
-                .tenureDays(offer.getTenureDays())
-                .status(LoanStatus.NEGOTIATING)
-                .build();
-
-        Loan savedLoan = loanRepository.save(loan);
-        return savedLoan.getId();
     }
 }

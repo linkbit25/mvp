@@ -89,6 +89,9 @@ public class Loan {
     @Column(name = "agreement_hash")
     private String agreementHash;
 
+    @Column(name = "agreement_finalized_at")
+    private LocalDateTime agreementFinalizedAt;
+
     @Column(name = "borrower_signature", columnDefinition = "TEXT")
     private String borrowerSignature;
 

@@ -8,8 +8,10 @@ import com.linkbit.mvp.dto.*;
 import com.linkbit.mvp.repository.PasswordResetTokenRepository;
 import com.linkbit.mvp.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.authentication.LockedException;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -27,6 +29,7 @@ public class AuthService {
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
     private final AuthenticationManager authenticationManager;
+    private final LoginAttemptService loginAttemptService;
 
     @Transactional
     public void register(RegisterRequest request) {
@@ -55,12 +58,23 @@ public class AuthService {
     }
 
     public AuthResponse login(LoginRequest request) {
-        authenticationManager.authenticate(
-                new UsernamePasswordAuthenticationToken(
-                        request.getEmail(),
-                        request.getPassword()
-                )
-        );
+        if (loginAttemptService.isBlocked(request.getEmail())) {
+            throw new LockedException("Too many login attempts. Please try again later.");
+        }
+
+        try {
+            authenticationManager.authenticate(
+                    new UsernamePasswordAuthenticationToken(
+                            request.getEmail(),
+                            request.getPassword()
+                    )
+            );
+        } catch (BadCredentialsException ex) {
+            loginAttemptService.recordFailure(request.getEmail());
+            throw ex;
+        }
+
+        loginAttemptService.reset(request.getEmail());
 
         User user = userRepository.findByEmail(request.getEmail())
                 .orElseThrow(() -> new UsernameNotFoundException("User not found"));
@@ -102,9 +116,13 @@ public class AuthService {
     }
 
     @Transactional
-    public String forgotPassword(String email) {
-        User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new UsernameNotFoundException("User not found"));
+    public void forgotPassword(String email) {
+        User user = userRepository.findByEmail(email).orElse(null);
+        if (user == null) {
+            return;
+        }
+
+        passwordResetTokenRepository.deleteByUser(user);
 
         String token = UUID.randomUUID().toString();
         PasswordResetToken resetToken = PasswordResetToken.builder()
@@ -114,8 +132,6 @@ public class AuthService {
                 .build();
 
         passwordResetTokenRepository.save(resetToken);
-
-        return token;
     }
 
     @Transactional

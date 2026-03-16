@@ -73,9 +73,10 @@ public class EscrowControllerTest {
 
     private User borrower;
     private User lender;
+    private User admin;
     private Loan loan;
     private String borrowerToken;
-    private String lenderToken;
+    private String adminToken;
 
     @BeforeEach
     void setUp() {
@@ -94,7 +95,6 @@ public class EscrowControllerTest {
                 .kycStatus(KycStatus.VERIFIED)
                 .build();
         userRepository.save(lender);
-        lenderToken = "Bearer " + jwtService.generateToken(lender);
 
         borrower = User.builder()
                 .email("borrower@example.com")
@@ -105,6 +105,16 @@ public class EscrowControllerTest {
                 .build();
         userRepository.save(borrower);
         borrowerToken = "Bearer " + jwtService.generateToken(borrower);
+
+        admin = User.builder()
+                .email("admin@example.com")
+                .password(passwordEncoder.encode("password"))
+                .phoneNumber("4444444444")
+                .pseudonym("Admin")
+                .kycStatus(KycStatus.VERIFIED)
+                .build();
+        userRepository.save(admin);
+        adminToken = "Bearer " + jwtService.generateToken(admin);
 
         LoanOffer offer = LoanOffer.builder()
                 .lender(lender)
@@ -181,7 +191,7 @@ public class EscrowControllerTest {
 
         // Verify
         mockMvc.perform(post("/admin/collateral/" + loan.getId() + "/verify")
-                .header("Authorization", lenderToken)) // simulated admin
+                .header("Authorization", adminToken))
                 .andExpect(status().isOk());
 
         // Check transition
@@ -209,7 +219,7 @@ public class EscrowControllerTest {
                 .content(objectMapper.writeValueAsString(request)));
 
         mockMvc.perform(post("/admin/collateral/" + loan.getId() + "/verify")
-                .header("Authorization", lenderToken))
+                .header("Authorization", adminToken))
                 .andExpect(status().isOk());
 
         // Should NOT be locked
@@ -279,7 +289,7 @@ public class EscrowControllerTest {
 
         // Verify Topup
         mockMvc.perform(post("/admin/collateral/" + loan.getId() + "/verify-topup")
-                .header("Authorization", lenderToken)) // admin
+                .header("Authorization", adminToken))
                 .andDo(org.springframework.test.web.servlet.result.MockMvcResultHandlers.print())
                 .andExpect(status().isOk());
 

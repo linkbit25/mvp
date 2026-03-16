@@ -86,16 +86,13 @@ public class LtvMonitoringWorkerTest {
 
     @Test
     void shouldMaintainActiveIfLtvBelowMargin() {
-        // BTC = 6,000,000 -> 0.02 BTC = 120,000 INR
-        // 100,000 / 120,000 = ~83.33% LTV (above 80 margin... wait, let's bump the price to make it safe)
         when(btcPriceService.getCurrentBtcPrice()).thenReturn(new BigDecimal("8000000.00")); // 0.02 = 160,000 -> 62.5% LTV
-        // BTC = 7,000,000 -> 0.02 BTC = 140,000 INR -> 100,000/140,000 = ~71.4% LTV (Safe!)
 
         worker.monitorLtvLevels();
 
         Loan l = loanRepository.findById(activeLoan.getId()).orElseThrow();
         assertThat(l.getStatus()).isEqualTo(LoanStatus.ACTIVE);
-        assertThat(l.getCurrentLtvPercent().doubleValue()).isCloseTo(71.4286, org.assertj.core.data.Offset.offset(0.1));
+        assertThat(l.getCurrentLtvPercent().doubleValue()).isCloseTo(62.5, org.assertj.core.data.Offset.offset(0.1));
         
         List<LoanLtvHistory> hist = historyRepository.findAll();
         assertThat(hist).isEmpty(); // No state change implies no record inserted in this simple iteration 

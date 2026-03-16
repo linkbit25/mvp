@@ -1,6 +1,15 @@
 package com.linkbit.mvp.service;
 
-import com.linkbit.mvp.domain.*;
+import com.linkbit.mvp.domain.EmiStatus;
+import com.linkbit.mvp.domain.LedgerEntryType;
+import com.linkbit.mvp.domain.Loan;
+import com.linkbit.mvp.domain.LoanEmi;
+import com.linkbit.mvp.domain.LoanLedger;
+import com.linkbit.mvp.domain.LoanRepayment;
+import com.linkbit.mvp.domain.LoanStatus;
+import com.linkbit.mvp.domain.RepaymentStatus;
+import com.linkbit.mvp.domain.RepaymentType;
+import com.linkbit.mvp.domain.User;
 import com.linkbit.mvp.dto.LedgerResponse;
 import com.linkbit.mvp.dto.RepaymentRequest;
 import com.linkbit.mvp.repository.LoanEmiRepository;
@@ -48,33 +57,30 @@ public class RepaymentService {
 
         createLedgerEntry(loan, LedgerEntryType.FIAT_DISBURSEMENT, loan.getPrincipalAmount(), "Loan Activated: Fiat Transferred");
 
-        if (loan.getOffer().getTenureDays() > 0) {
+        if (loan.getRepaymentType() == RepaymentType.EMI || (loan.getRepaymentType() == null && loan.getEmiCount() != null && loan.getEmiCount() > 1)) {
             generateEmiSchedule(loan);
         }
     }
 
     private void generateEmiSchedule(Loan loan) {
-        int emiCount = loan.getOffer().getTenureDays() / 30;
-        if (emiCount == 0) emiCount = 1; // Treat <30 days as 1 bullet / single EMI at end
-
-        BigDecimal emiAmount = loan.getTotalRepaymentAmount()
-                .divide(BigDecimal.valueOf(emiCount), 2, RoundingMode.HALF_UP);
+        int emiCount = loan.getEmiCount() != null && loan.getEmiCount() > 0 ? loan.getEmiCount() : 1;
+        BigDecimal scheduledEmiAmount = loan.getEmiAmount() != null
+                ? loan.getEmiAmount()
+                : loan.getTotalRepaymentAmount().divide(BigDecimal.valueOf(emiCount), 2, RoundingMode.HALF_UP);
 
         BigDecimal remainingBalance = loan.getTotalRepaymentAmount();
-
         for (int i = 1; i <= emiCount; i++) {
-            BigDecimal currentEmiAmount = (i == emiCount) ? remainingBalance : emiAmount;
+            BigDecimal currentEmiAmount = (i == emiCount) ? remainingBalance : scheduledEmiAmount;
             remainingBalance = remainingBalance.subtract(currentEmiAmount);
 
-            LoanEmi emi = LoanEmi.builder()
+            emiRepository.save(LoanEmi.builder()
                     .loan(loan)
                     .emiNumber(i)
                     .dueDate(LocalDate.now().plusDays(30L * i))
                     .emiAmount(currentEmiAmount)
                     .amountPaid(BigDecimal.ZERO)
                     .status(EmiStatus.PENDING)
-                    .build();
-            emiRepository.save(emi);
+                    .build());
         }
     }
 
@@ -86,57 +92,50 @@ public class RepaymentService {
         if (!loan.getBorrower().getId().equals(user.getId())) {
             throw new RuntimeException("Unauthorized: Only borrower can submit a repayment");
         }
-
         if (loan.getStatus() != LoanStatus.ACTIVE) {
             throw new RuntimeException("Loan must be in ACTIVE status to submit repayments");
         }
 
-        LoanRepayment repayment = LoanRepayment.builder()
+        repaymentRepository.save(LoanRepayment.builder()
                 .loan(loan)
                 .amountInr(request.getAmount())
                 .transactionReference(request.getTransactionReference())
                 .proofUrl(request.getProofImageUrl())
                 .status(RepaymentStatus.PENDING)
-                .build();
-
-        repaymentRepository.save(repayment);
-        chatService.sendSystemMessage(loanId, "SYSTEM: Borrower submitted a repayment of ₹" + request.getAmount() + ". Admin verification required.");
+                .build());
+        chatService.sendSystemMessage(loanId, "SYSTEM: Borrower submitted a repayment of INR " + request.getAmount() + ". Admin verification required.");
     }
 
     @Transactional
     public void verifyRepayment(UUID repaymentId) {
         LoanRepayment repayment = repaymentRepository.findById(repaymentId)
                 .orElseThrow(() -> new RuntimeException("Repayment not found"));
-
         if (repayment.getStatus() != RepaymentStatus.PENDING) {
             throw new RuntimeException("Repayment is already verified or rejected");
         }
 
         Loan loan = repayment.getLoan();
-
         repayment.setStatus(RepaymentStatus.VERIFIED);
         repaymentRepository.save(repayment);
 
         processRepaymentFinancials(loan, repayment.getAmountInr());
         createLedgerEntry(loan, LedgerEntryType.BORROWER_REPAYMENT, repayment.getAmountInr(), "Repayment Verified. Ref: " + repayment.getTransactionReference());
-
-        chatService.sendSystemMessage(loan.getId(), "SYSTEM: Admin verified repayment of ₹" + repayment.getAmountInr() + ". Outstanding balance updated.");
+        chatService.sendSystemMessage(loan.getId(), "SYSTEM: Admin verified repayment of INR " + repayment.getAmountInr() + ". Outstanding balance updated.");
 
         if (loan.getTotalOutstanding().compareTo(BigDecimal.ZERO) <= 0) {
             loan.setStatus(LoanStatus.REPAID);
             loanRepository.save(loan);
-            chatService.sendSystemMessage(loan.getId(), "SYSTEM: Loan is fully REPAID. (Pending collateral release stage)");
+            chatService.sendSystemMessage(loan.getId(), "SYSTEM: Loan is fully REPAID. Pending collateral release.");
         }
     }
 
     private void processRepaymentFinancials(Loan loan, BigDecimal repaymentAmount) {
         BigDecimal newTotal = loan.getTotalOutstanding().subtract(repaymentAmount);
         if (newTotal.compareTo(BigDecimal.ZERO) < 0) {
-             newTotal = BigDecimal.ZERO;
+            newTotal = BigDecimal.ZERO;
         }
         loan.setTotalOutstanding(newTotal);
 
-        // Deduct interest first, then principal
         BigDecimal currentInterest = loan.getInterestOutstanding();
         if (repaymentAmount.compareTo(currentInterest) >= 0) {
             loan.setInterestOutstanding(BigDecimal.ZERO);
@@ -146,32 +145,25 @@ public class RepaymentService {
         } else {
             loan.setInterestOutstanding(currentInterest.subtract(repaymentAmount));
         }
-
         loanRepository.save(loan);
 
-        // Process EMIs resolving them chronologically
-        List<LoanEmi> pendingEmis = emiRepository.findByLoanIdOrderByEmiNumberAsc(loan.getId())
-                .stream()
-                .filter(emi -> emi.getStatus() == EmiStatus.PENDING || emi.getStatus() == EmiStatus.PARTIAL || emi.getStatus() == EmiStatus.OVERDUE)
-                .toList();
-
         BigDecimal remainingToSettle = repaymentAmount;
-
-        for (LoanEmi emi : pendingEmis) {
-            if (remainingToSettle.compareTo(BigDecimal.ZERO) <= 0) break;
+        for (LoanEmi emi : emiRepository.findByLoanIdOrderByEmiNumberAsc(loan.getId()).stream()
+                .filter(existing -> existing.getStatus() == EmiStatus.PENDING || existing.getStatus() == EmiStatus.PARTIAL || existing.getStatus() == EmiStatus.OVERDUE)
+                .toList()) {
+            if (remainingToSettle.compareTo(BigDecimal.ZERO) <= 0) {
+                break;
+            }
 
             BigDecimal emiRemaining = emi.getEmiAmount().subtract(emi.getAmountPaid());
-            
             if (remainingToSettle.compareTo(emiRemaining) >= 0) {
-                // Fully settle this EMI
                 remainingToSettle = remainingToSettle.subtract(emiRemaining);
                 emi.setAmountPaid(emi.getEmiAmount());
                 emi.setStatus(EmiStatus.PAID);
             } else {
-                // Partially settle this EMI
                 emi.setAmountPaid(emi.getAmountPaid().add(remainingToSettle));
                 if (emi.getStatus() == EmiStatus.PENDING) {
-                     emi.setStatus(EmiStatus.PARTIAL);
+                    emi.setStatus(EmiStatus.PARTIAL);
                 }
                 remainingToSettle = BigDecimal.ZERO;
             }
@@ -185,7 +177,7 @@ public class RepaymentService {
         User user = getUserByEmail(email);
 
         if (!loan.getBorrower().getId().equals(user.getId()) && !loan.getLender().getId().equals(user.getId())) {
-             throw new RuntimeException("Unauthorized: Only participants can view the ledger");
+            throw new RuntimeException("Unauthorized: Only participants can view the ledger");
         }
 
         return ledgerRepository.findByLoanIdOrderByCreatedAtAsc(loanId).stream()
@@ -197,13 +189,12 @@ public class RepaymentService {
     }
 
     private void createLedgerEntry(Loan loan, LedgerEntryType type, BigDecimal amount, String notes) {
-        LoanLedger ledger = LoanLedger.builder()
+        ledgerRepository.save(LoanLedger.builder()
                 .loan(loan)
                 .entryType(type)
                 .amountInr(amount)
                 .notes(notes)
-                .build();
-        ledgerRepository.save(ledger);
+                .build());
     }
 
     private User getUserByEmail(String email) {

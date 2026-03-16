@@ -98,6 +98,9 @@ public class RepaymentControllerTest {
                 .borrower(borrower)
                 .principalAmount(offer.getLoanAmountInr())
                 .interestRate(offer.getInterestRate())
+                .repaymentType(RepaymentType.EMI)
+                .emiCount(2)
+                .emiAmount(new BigDecimal("550.00"))
                 .totalRepaymentAmount(new BigDecimal("1100")) // 10% on 1000 (simplistic flat sum logic)
                 .tenureDays(offer.getTenureDays())
                 .status(LoanStatus.DISPUTE_OPEN) // Jumpstarting directly to activation call

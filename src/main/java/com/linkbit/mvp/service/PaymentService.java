@@ -16,6 +16,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.util.List;
 import java.util.UUID;
 
 @Service
@@ -31,14 +32,12 @@ public class PaymentService {
     public FeeResponse initiateFeePayment(String email, UUID loanId) {
         User borrower = userRepository.findByEmail(email)
                 .orElseThrow(() -> new UsernameNotFoundException("User not found"));
-
         Loan loan = loanRepository.findById(loanId)
                 .orElseThrow(() -> new RuntimeException("Loan not found"));
 
         if (!loan.getBorrower().getId().equals(borrower.getId())) {
             throw new RuntimeException("Only borrower can initiate fee payment");
         }
-
         if (loan.getStatus() != LoanStatus.AWAITING_FEE) {
             throw new RuntimeException("Loan is not awaiting fee");
         }
@@ -47,13 +46,13 @@ public class PaymentService {
                 .multiply(new BigDecimal("0.02"))
                 .setScale(2, RoundingMode.HALF_UP);
 
-        PlatformFee fee = PlatformFee.builder()
-                .loan(loan)
-                .amountInr(feeAmount)
-                .status(PlatformFeeStatus.PENDING)
-                .build();
-
-        PlatformFee savedFee = platformFeeRepository.save(fee);
+        PlatformFee savedFee = platformFeeRepository
+                .findTopByLoanIdAndStatusInOrderByCreatedAtDesc(loanId, List.of(PlatformFeeStatus.PENDING, PlatformFeeStatus.SUCCESS))
+                .orElseGet(() -> platformFeeRepository.save(PlatformFee.builder()
+                        .loan(loan)
+                        .amountInr(feeAmount)
+                        .status(PlatformFeeStatus.PENDING)
+                        .build()));
 
         return FeeResponse.builder()
                 .feeId(savedFee.getId())
@@ -67,7 +66,6 @@ public class PaymentService {
     public void verifyPayment(UUID feeId) {
         PlatformFee fee = platformFeeRepository.findById(feeId)
                 .orElseThrow(() -> new RuntimeException("Platform fee not found"));
-
         if (fee.getStatus() != PlatformFeeStatus.PENDING) {
             throw new RuntimeException("Fee is not in PENDING status");
         }

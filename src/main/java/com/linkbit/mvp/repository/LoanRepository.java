@@ -13,5 +13,7 @@ import java.util.UUID;
 public interface LoanRepository extends JpaRepository<Loan, UUID> {
     List<Loan> findByOffer(LoanOffer offer);
     boolean existsByOffer(LoanOffer offer);
+    boolean existsByOfferAndStatusNot(LoanOffer offer, LoanStatus status);
+    boolean existsByOfferAndStatusIn(LoanOffer offer, List<LoanStatus> statuses);
     List<Loan> findByStatusIn(List<LoanStatus> statuses);
 }

@@ -55,9 +55,11 @@ public class PaymentControllerTest {
 
     private User borrower;
     private User lender;
+    private User admin;
     private Loan loan;
     private String borrowerToken;
     private String lenderToken;
+    private String adminToken;
 
     @BeforeEach
     void setUp() {
@@ -85,6 +87,16 @@ public class PaymentControllerTest {
                 .build();
         userRepository.save(borrower);
         borrowerToken = "Bearer " + jwtService.generateToken(borrower);
+
+        admin = User.builder()
+                .email("admin@example.com")
+                .password(passwordEncoder.encode("password"))
+                .phoneNumber("9999999999")
+                .pseudonym("AdminUser")
+                .kycStatus(KycStatus.VERIFIED)
+                .build();
+        userRepository.save(admin);
+        adminToken = "Bearer " + jwtService.generateToken(admin);
 
         LoanOffer offer = LoanOffer.builder()
                 .lender(lender)
@@ -152,7 +164,7 @@ public class PaymentControllerTest {
 
         // Act: Verify payment
         mockMvc.perform(post("/admin/payments/" + feeId + "/verify")
-                .header("Authorization", lenderToken)) // Simulating another user acting as admin
+                .header("Authorization", adminToken))
                 .andExpect(status().isOk());
 
         // Assert: Check loan status manually matching the ID
