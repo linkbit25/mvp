@@ -1,6 +1,15 @@
 package com.linkbit.mvp.service;
 
-import com.linkbit.mvp.domain.*;
+import com.linkbit.mvp.domain.LoanStatus;
+import com.linkbit.mvp.domain.BitcoinTransactionType;
+import com.linkbit.mvp.domain.ActorType;
+import com.linkbit.mvp.domain.LoanAction;
+import com.linkbit.mvp.domain.Loan;
+import com.linkbit.mvp.domain.User;
+import com.linkbit.mvp.domain.EscrowAccount;
+import com.linkbit.mvp.domain.BitcoinTransaction;
+import com.linkbit.mvp.domain.LoanMarginCall;
+import com.linkbit.mvp.domain.MarginCallStatus;
 import com.linkbit.mvp.dto.EscrowResponse;
 import com.linkbit.mvp.repository.BitcoinTransactionRepository;
 import com.linkbit.mvp.repository.EscrowAccountRepository;
@@ -30,6 +39,7 @@ public class EscrowService {
     private final UserRepository userRepository;
     private final BtcPriceService btcPriceService;
     private final ChatService chatService;
+    private final StateMachineService stateMachineService;
 
     @Transactional
     public EscrowResponse generateAddress(String email, UUID loanId) {
@@ -123,7 +133,7 @@ public class EscrowService {
         if (loan.getStatus() == LoanStatus.AWAITING_COLLATERAL) {
             boolean satisfied = validateCollateralAmount(loan, totalSatsNow);
             if (satisfied) {
-                loan.setStatus(LoanStatus.COLLATERAL_LOCKED);
+                stateMachineService.transition(loan, LoanAction.DEPOSIT_COLLATERAL, ActorType.SYSTEM);
                 
                 // Also initialize collateral_btc_amount to accurate sizing
                 BigDecimal sumBtc = new BigDecimal(totalSatsNow).divide(new BigDecimal("100000000"), 10, RoundingMode.HALF_UP);
@@ -208,7 +218,7 @@ public class EscrowService {
         int marginThreshold = loan.getMarginCallLtvPercent() != null ? loan.getMarginCallLtvPercent() : 85;
 
         if (currentLtvPercent.compareTo(new BigDecimal(marginThreshold)) < 0) {
-            loan.setStatus(LoanStatus.ACTIVE);
+            stateMachineService.transition(loan, LoanAction.LTV_RECOVERED, ActorType.SYSTEM);
             chatService.sendSystemMessage(loanId, String.format("SYSTEM: Top-up verified. LTV reduced to %.2f%%. Margin call resolved, loan is now ACTIVE.", currentLtvPercent));
             
             // Resolve active margin calls

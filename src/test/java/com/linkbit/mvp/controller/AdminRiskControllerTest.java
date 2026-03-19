@@ -67,6 +67,7 @@ public class AdminRiskControllerTest {
                 .interestRate(offer.getInterestRate())
                 .tenureDays(30)
                 .totalOutstanding(new BigDecimal("100"))
+                .collateralBtcAmount(new BigDecimal("1.5"))
                 .status(LoanStatus.ACTIVE)
                 .build());
     }

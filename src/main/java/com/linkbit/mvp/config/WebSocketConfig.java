@@ -32,9 +32,14 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
     private final JwtService jwtService;
     private final UserDetailsService userDetailsService;
+    private final org.springframework.context.ApplicationContext applicationContext;
 
     @Value("${linkbit.cors.allowed-origins}")
     private String allowedOrigins;
+
+    private com.linkbit.mvp.repository.LoanRepository getLoanRepository() {
+        return applicationContext.getBean(com.linkbit.mvp.repository.LoanRepository.class);
+    }
 
     @Override
     public void registerStompEndpoints(StompEndpointRegistry registry) {
@@ -76,6 +81,22 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
                             }
                         } catch (JwtException | IllegalArgumentException ex) {
                             log.debug("Rejected websocket connection with invalid JWT");
+                        }
+                    }
+                } else if (StompCommand.SUBSCRIBE.equals(accessor.getCommand())) {
+                    String destination = accessor.getDestination();
+                    if (destination != null && destination.startsWith("/topic/loans/")) {
+                        String loanIdStr = destination.substring("/topic/loans/".length());
+                        try {
+                            java.util.UUID loanId = java.util.UUID.fromString(loanIdStr);
+                            java.security.Principal principal = accessor.getUser();
+                            if (principal == null || !getLoanRepository().isParticipant(loanId, principal.getName())) {
+                                log.warn("Unauthorized subscription attempt to {} by {}", destination, 
+                                        principal != null ? principal.getName() : "anonymous");
+                                return null; // Reject the message
+                            }
+                        } catch (IllegalArgumentException e) {
+                            // Not a UUID suffix, allow through (could be a different sub-topic)
                         }
                     }
                 }

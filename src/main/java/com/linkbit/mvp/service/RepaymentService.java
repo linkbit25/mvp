@@ -7,6 +7,8 @@ import com.linkbit.mvp.domain.LoanEmi;
 import com.linkbit.mvp.domain.LoanLedger;
 import com.linkbit.mvp.domain.LoanRepayment;
 import com.linkbit.mvp.domain.LoanStatus;
+import com.linkbit.mvp.domain.ActorType;
+import com.linkbit.mvp.domain.LoanAction;
 import com.linkbit.mvp.domain.RepaymentStatus;
 import com.linkbit.mvp.domain.RepaymentType;
 import com.linkbit.mvp.domain.User;
@@ -38,6 +40,7 @@ public class RepaymentService {
     private final LoanLedgerRepository ledgerRepository;
     private final UserRepository userRepository;
     private final ChatService chatService;
+    private final StateMachineService stateMachineService;
 
     @Transactional
     public void initializeLoanFinancials(Loan loan) {
@@ -96,6 +99,10 @@ public class RepaymentService {
             throw new RuntimeException("Loan must be in ACTIVE status to submit repayments");
         }
 
+        if (request.getAmount().compareTo(loan.getTotalOutstanding()) > 0) {
+            throw new IllegalArgumentException("Repayment amount cannot exceed total outstanding balance of INR " + loan.getTotalOutstanding());
+        }
+
         repaymentRepository.save(LoanRepayment.builder()
                 .loan(loan)
                 .amountInr(request.getAmount())
@@ -115,6 +122,8 @@ public class RepaymentService {
         }
 
         Loan loan = repayment.getLoan();
+        if (loan.getStatus() == LoanStatus.REPAID) return;
+        
         repayment.setStatus(RepaymentStatus.VERIFIED);
         repaymentRepository.save(repayment);
 
@@ -122,18 +131,19 @@ public class RepaymentService {
         createLedgerEntry(loan, LedgerEntryType.BORROWER_REPAYMENT, repayment.getAmountInr(), "Repayment Verified. Ref: " + repayment.getTransactionReference());
         chatService.sendSystemMessage(loan.getId(), "SYSTEM: Admin verified repayment of INR " + repayment.getAmountInr() + ". Outstanding balance updated.");
 
-        if (loan.getTotalOutstanding().compareTo(BigDecimal.ZERO) <= 0) {
-            loan.setStatus(LoanStatus.REPAID);
+        if (loan.getTotalOutstanding().compareTo(BigDecimal.ZERO) == 0) {
+            stateMachineService.transition(loan, LoanAction.REPAY_LOAN, ActorType.SYSTEM);
             loanRepository.save(loan);
             chatService.sendSystemMessage(loan.getId(), "SYSTEM: Loan is fully REPAID. Pending collateral release.");
         }
     }
 
     private void processRepaymentFinancials(Loan loan, BigDecimal repaymentAmount) {
-        BigDecimal newTotal = loan.getTotalOutstanding().subtract(repaymentAmount);
-        if (newTotal.compareTo(BigDecimal.ZERO) < 0) {
-            newTotal = BigDecimal.ZERO;
+        if (repaymentAmount.compareTo(loan.getTotalOutstanding()) > 0) {
+            throw new IllegalArgumentException("Repayment exceeds outstanding balance");
         }
+
+        BigDecimal newTotal = loan.getTotalOutstanding().subtract(repaymentAmount);
         loan.setTotalOutstanding(newTotal);
 
         BigDecimal currentInterest = loan.getInterestOutstanding();

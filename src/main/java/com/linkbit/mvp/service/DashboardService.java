@@ -45,7 +45,7 @@ public class DashboardService {
 
     public LoanDetailResponse getLoanDetail(String email, UUID loanId) {
         User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new UsernameNotFoundException("User not found"));
+                .orElseThrow(() -> new UsernameNotFoundException("User not found: " + email));
         Loan loan = findLoan(loanId);
 
         boolean isBorrower = loan.getBorrower().getId().equals(user.getId());
@@ -126,6 +126,7 @@ public class DashboardService {
                 .findTopByLoanIdAndStatusInOrderByCreatedAtDesc(loan.getId(), List.of(PlatformFeeStatus.PENDING))
                 .map(this::toPendingFee)
                 .orElse(null);
+
         var pendingRepayments = loanRepaymentRepository.findByLoanIdOrderByCreatedAtDesc(loan.getId()).stream()
                 .filter(repayment -> repayment.getStatus() == RepaymentStatus.PENDING)
                 .map(this::toPendingRepayment)

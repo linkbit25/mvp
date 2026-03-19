@@ -5,6 +5,7 @@ import com.linkbit.mvp.domain.LoanStatus;
 import com.linkbit.mvp.dto.SetRiskStateRequest;
 import com.linkbit.mvp.repository.LoanRepository;
 import com.linkbit.mvp.service.ChatService;
+import com.linkbit.mvp.service.StateMachineService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -20,6 +21,7 @@ public class AdminRiskController {
 
     private final LoanRepository loanRepository;
     private final ChatService chatService;
+    private final StateMachineService stateMachineService;
 
     @PostMapping("/{loanId}/set-risk-state")
     public ResponseEntity<Void> setRiskState(
@@ -34,7 +36,7 @@ public class AdminRiskController {
             throw new RuntimeException("Invalid risk state specific override");
         }
 
-        loan.setStatus(request.getStatus());
+        stateMachineService.adminTransition(loan, request.getStatus());
         loanRepository.save(loan);
 
         chatService.sendSystemMessage(loanId, "SYSTEM: Admin mechanically overridden risk state to: " + request.getStatus());

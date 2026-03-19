@@ -98,6 +98,7 @@ public class DisbursementControllerTest {
                 .interestRate(offer.getInterestRate())
                 .tenureDays(offer.getTenureDays())
                 .expectedLtvPercent(offer.getExpectedLtvPercent())
+                .collateralBtcAmount(new BigDecimal("1.5"))
                 .status(LoanStatus.COLLATERAL_LOCKED)
                 .build());
                 

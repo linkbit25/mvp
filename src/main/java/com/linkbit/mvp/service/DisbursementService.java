@@ -3,6 +3,8 @@ package com.linkbit.mvp.service;
 import com.linkbit.mvp.domain.EscrowAccount;
 import com.linkbit.mvp.domain.Loan;
 import com.linkbit.mvp.domain.LoanStatus;
+import com.linkbit.mvp.domain.ActorType;
+import com.linkbit.mvp.domain.LoanAction;
 import com.linkbit.mvp.domain.User;
 import com.linkbit.mvp.domain.UserKycDetails;
 import com.linkbit.mvp.dto.DisbursementRequest;
@@ -27,6 +29,7 @@ public class DisbursementService {
     private final EscrowAccountRepository escrowAccountRepository;
     private final ChatService chatService;
     private final RepaymentService repaymentService;
+    private final StateMachineService stateMachineService;
 
     @Transactional(readOnly = true)
     public PaymentDetailsResponse getPaymentDetails(UUID loanId, String email) {
@@ -84,6 +87,7 @@ public class DisbursementService {
         }
 
         if (loan.getStatus() != LoanStatus.COLLATERAL_LOCKED) {
+            if (loan.getStatus() == LoanStatus.ACTIVE) return; // Prevent double activation
             throw new RuntimeException("Loan must be in COLLATERAL_LOCKED state to confirm receipt");
         }
 
@@ -92,7 +96,7 @@ public class DisbursementService {
         }
 
         loan.setFiatReceivedConfirmedAt(LocalDateTime.now());
-        loan.setStatus(LoanStatus.ACTIVE);
+        stateMachineService.transition(loan, LoanAction.DISBURSE_FIAT, ActorType.SYSTEM);
         loanRepository.save(loan);
 
         chatService.sendSystemMessage(loanId, "SYSTEM: Borrower confirmed receipt of fiat. Loan is now ACTIVE.");
@@ -142,7 +146,7 @@ public class DisbursementService {
             throw new RuntimeException("Cannot dispute before lender marks as disbursed");
         }
 
-        loan.setStatus(LoanStatus.DISPUTE_OPEN);
+        stateMachineService.transition(loan, LoanAction.MARK_DISPUTE, ActorType.SYSTEM);
         loanRepository.save(loan);
 
         chatService.sendSystemMessage(loanId, "SYSTEM: Borrower opened a dispute claiming no fiat was received. Admin intervention required.");
@@ -153,10 +157,11 @@ public class DisbursementService {
         Loan loan = getLoan(loanId);
 
         if (loan.getStatus() != LoanStatus.DISPUTE_OPEN) {
+            if (loan.getStatus() == LoanStatus.ACTIVE) return;
             throw new RuntimeException("Loan must be in DISPUTE_OPEN state for this admin action");
         }
 
-        loan.setStatus(LoanStatus.ACTIVE);
+        stateMachineService.transition(loan, LoanAction.RESOLVE_DISPUTE, ActorType.SYSTEM);
         loanRepository.save(loan);
 
         chatService.sendSystemMessage(loanId, "SYSTEM: Admin resolved dispute in favor of lender (proof valid). Loan is now ACTIVE.");
@@ -169,6 +174,7 @@ public class DisbursementService {
         Loan loan = getLoan(loanId);
 
         if (loan.getStatus() != LoanStatus.DISPUTE_OPEN) {
+            if (loan.getStatus() == LoanStatus.CLOSED) return;
             throw new RuntimeException("Loan must be in DISPUTE_OPEN state for this admin action");
         }
 
@@ -180,7 +186,7 @@ public class DisbursementService {
             escrowAccountRepository.save(escrow);
         }
 
-        loan.setStatus(LoanStatus.CLOSED);
+        stateMachineService.transition(loan, LoanAction.RELEASE_COLLATERAL, ActorType.SYSTEM);
         loanRepository.save(loan);
 
         chatService.sendSystemMessage(loanId, "SYSTEM: Admin resolved dispute in favor of borrower. Collateral marked for refund. Loan is now CLOSED.");

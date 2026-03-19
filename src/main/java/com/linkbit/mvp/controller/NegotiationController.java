@@ -2,6 +2,7 @@ package com.linkbit.mvp.controller;
 
 import com.linkbit.mvp.dto.SignContractRequest;
 import com.linkbit.mvp.dto.UpdateTermsRequest;
+import com.linkbit.mvp.dto.AgreementResponse;
 import com.linkbit.mvp.service.NegotiationService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -54,5 +55,13 @@ public class NegotiationController {
         
         negotiationService.cancelNegotiation(authentication.getName(), loanId);
         return ResponseEntity.ok().build();
+    }
+
+    @GetMapping("/{loanId}/agreement")
+    public ResponseEntity<AgreementResponse> getAgreement(
+            Authentication authentication,
+            @PathVariable UUID loanId) {
+        
+        return ResponseEntity.ok(negotiationService.getAgreement(authentication.getName(), loanId));
     }
 }

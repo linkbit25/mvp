@@ -2,6 +2,8 @@ package com.linkbit.mvp.service;
 
 import com.linkbit.mvp.domain.Loan;
 import com.linkbit.mvp.domain.LoanStatus;
+import com.linkbit.mvp.domain.ActorType;
+import com.linkbit.mvp.domain.LoanAction;
 import com.linkbit.mvp.domain.PlatformFee;
 import com.linkbit.mvp.domain.PlatformFeeStatus;
 import com.linkbit.mvp.domain.User;
@@ -27,6 +29,7 @@ public class PaymentService {
     private final PlatformFeeRepository platformFeeRepository;
     private final UserRepository userRepository;
     private final ChatService chatService;
+    private final StateMachineService stateMachineService;
 
     @Transactional
     public FeeResponse initiateFeePayment(String email, UUID loanId) {
@@ -75,7 +78,7 @@ public class PaymentService {
 
         Loan loan = fee.getLoan();
         if (loan.getStatus() == LoanStatus.AWAITING_FEE) {
-            loan.setStatus(LoanStatus.AWAITING_COLLATERAL);
+            stateMachineService.transition(loan, LoanAction.PAY_FEE, ActorType.BORROWER);
             loanRepository.save(loan);
             chatService.sendSystemMessage(loan.getId(), "SYSTEM: Processing fee verified. Loan status: AWAITING_COLLATERAL.");
         }

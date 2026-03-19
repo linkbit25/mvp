@@ -1,6 +1,12 @@
 package com.linkbit.mvp.service;
 
-import com.linkbit.mvp.domain.*;
+import com.linkbit.mvp.domain.ActorType;
+import com.linkbit.mvp.domain.Loan;
+import com.linkbit.mvp.domain.LoanAction;
+import com.linkbit.mvp.domain.LoanLtvHistory;
+import com.linkbit.mvp.domain.LoanMarginCall;
+import com.linkbit.mvp.domain.LoanStatus;
+import com.linkbit.mvp.domain.MarginCallStatus;
 import com.linkbit.mvp.repository.LoanLtvHistoryRepository;
 import com.linkbit.mvp.repository.LoanMarginCallRepository;
 import com.linkbit.mvp.repository.LoanRepository;
@@ -26,6 +32,7 @@ public class LtvMonitoringWorker {
     private final LoanMarginCallRepository marginCallRepository;
     private final BtcPriceService btcPriceService;
     private final ChatService chatService;
+    private final StateMachineService stateMachineService;
 
     @Scheduled(fixedRate = 1000)
     @Transactional
@@ -91,7 +98,13 @@ public class LtvMonitoringWorker {
 
         if (newStatus != previousStatus) {
             handleStatusTransition(loan, previousStatus, newStatus, ltvPercent);
-            loan.setStatus(newStatus);
+            if (newStatus == LoanStatus.LIQUIDATION_ELIGIBLE) {
+                stateMachineService.transition(loan, LoanAction.LTV_DROP_LIQUIDATION, ActorType.SYSTEM);
+            } else if (newStatus == LoanStatus.MARGIN_CALL) {
+                stateMachineService.transition(loan, LoanAction.LTV_DROP_MARGIN_CALL, ActorType.SYSTEM);
+            } else if (newStatus == LoanStatus.ACTIVE) {
+                stateMachineService.transition(loan, LoanAction.LTV_RECOVERED, ActorType.SYSTEM);
+            }
             
              LoanLtvHistory history = LoanLtvHistory.builder()
                 .loan(loan)

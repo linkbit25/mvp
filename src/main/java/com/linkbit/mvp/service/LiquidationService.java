@@ -1,6 +1,12 @@
 package com.linkbit.mvp.service;
 
-import com.linkbit.mvp.domain.*;
+import com.linkbit.mvp.domain.ActorType;
+import com.linkbit.mvp.domain.LedgerEntryType;
+import com.linkbit.mvp.domain.Loan;
+import com.linkbit.mvp.domain.LoanAction;
+import com.linkbit.mvp.domain.LoanLedger;
+import com.linkbit.mvp.domain.LoanLiquidation;
+import com.linkbit.mvp.domain.LoanStatus;
 import com.linkbit.mvp.repository.*;
 import lombok.RequiredArgsConstructor;
 import com.linkbit.mvp.service.BtcPriceService;
@@ -22,6 +28,7 @@ public class LiquidationService {
     private final LoanLiquidationRepository loanLiquidationRepository;
     private final LoanLedgerRepository loanLedgerRepository;
     private final BtcPriceService btcPriceService;
+    private final StateMachineService stateMachineService;
 
     @Transactional
     public void executeLiquidation(UUID loanId) {
@@ -29,6 +36,7 @@ public class LiquidationService {
                 .orElseThrow(() -> new IllegalArgumentException("Loan not found: " + loanId));
 
         if (loan.getStatus() != LoanStatus.LIQUIDATION_ELIGIBLE) {
+            if (loan.getStatus() == LoanStatus.LIQUIDATED) return;
             throw new IllegalStateException("Loan is not eligible for liquidation. Current status: " + loan.getStatus());
         }
 
@@ -51,7 +59,7 @@ public class LiquidationService {
         // If user topped up and LTV is now safe (below liquidation threshold), revert to ACTIVE
         int liquidationThreshold = loan.getLiquidationLtvPercent() != null ? loan.getLiquidationLtvPercent() : 95;
         if (ltvPercent.compareTo(new BigDecimal(liquidationThreshold)) < 0) {
-            loan.setStatus(LoanStatus.ACTIVE);
+            stateMachineService.transition(loan, LoanAction.LTV_RECOVERED, ActorType.SYSTEM);
             loanRepository.save(loan);
             log.info("Liquidation aborted for loan {} as LTV {} is below threshold {}", loanId, ltvPercent, liquidationThreshold);
             return;
@@ -96,7 +104,7 @@ public class LiquidationService {
         borrowerReturn = remainingCollateralValue;
 
         // Update Loan
-        loan.setStatus(LoanStatus.LIQUIDATED);
+        stateMachineService.transition(loan, LoanAction.EXECUTE_LIQUIDATION, ActorType.SYSTEM);
         loan.setLiquidationExecutedAt(LocalDateTime.now());
         loan.setLiquidationPriceInr(btcPrice);
         loan.setLenderRepaymentAmount(actualLenderRepayment);

@@ -24,4 +24,7 @@ public interface LoanRepository extends JpaRepository<Loan, UUID> {
             order by l.updatedAt desc, l.createdAt desc
             """)
     List<Loan> findDashboardLoansByUserId(@Param("userId") UUID userId);
+
+    @Query("SELECT COUNT(l) > 0 FROM Loan l WHERE l.id = :id AND (l.borrower.email = :email OR l.lender.email = :email)")
+    boolean isParticipant(@Param("id") UUID id, @Param("email") String email);
 }

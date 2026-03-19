@@ -4,9 +4,12 @@ import com.linkbit.mvp.domain.Loan;
 import com.linkbit.mvp.domain.LoanOffer;
 import com.linkbit.mvp.domain.LoanOfferStatus;
 import com.linkbit.mvp.domain.LoanStatus;
+import com.linkbit.mvp.domain.LoanAction;
+import com.linkbit.mvp.domain.ActorType;
 import com.linkbit.mvp.domain.RepaymentType;
 import com.linkbit.mvp.domain.User;
 import com.linkbit.mvp.dto.UpdateTermsRequest;
+import com.linkbit.mvp.dto.AgreementResponse;
 import com.linkbit.mvp.repository.LoanOfferRepository;
 import com.linkbit.mvp.repository.LoanRepository;
 import com.linkbit.mvp.repository.UserRepository;
@@ -31,6 +34,7 @@ public class NegotiationService {
     private final LoanOfferRepository loanOfferRepository;
     private final UserRepository userRepository;
     private final ChatService chatService;
+    private final StateMachineService stateMachineService;
 
     @Transactional
     public void updateTerms(String email, UUID loanId, UpdateTermsRequest request) {
@@ -77,9 +81,13 @@ public class NegotiationService {
         LocalDateTime finalizedAt = LocalDateTime.now();
         loan.setAgreementFinalizedAt(finalizedAt);
         loan.setAgreementHash(generateHash(buildAgreementData(loan, finalizedAt)));
-        loan.setStatus(LoanStatus.AWAITING_SIGNATURES);
+        stateMachineService.transition(loan, LoanAction.FINALIZE_CONTRACT, ActorType.LENDER);
 
-        LoanOffer offer = loan.getOffer();
+        LoanOffer offer = loanOfferRepository.findByIdForUpdate(loan.getOffer().getId())
+                .orElseThrow(() -> new RuntimeException("Offer not found"));
+        if (offer.getStatus() != LoanOfferStatus.OPEN) {
+            throw new RuntimeException("Offer is no longer open for finalization");
+        }
         offer.setStatus(LoanOfferStatus.CLOSED);
         loanOfferRepository.save(offer);
         loanRepository.save(loan);
@@ -114,7 +122,8 @@ public class NegotiationService {
         }
 
         if (loan.getBorrowerSignature() != null && loan.getLenderSignature() != null) {
-            loan.setStatus(LoanStatus.AWAITING_FEE);
+            ActorType signerType = user.getId().equals(loan.getBorrower().getId()) ? ActorType.BORROWER : ActorType.LENDER;
+            stateMachineService.transition(loan, LoanAction.SIGN_CONTRACT, signerType);
             chatService.sendSystemMessage(loanId, "SYSTEM: Contract signed by both parties. Loan status: AWAITING_FEE");
         } else {
             chatService.sendSystemMessage(loanId, "SYSTEM: Contract signed by " + user.getPseudonym());
@@ -135,14 +144,32 @@ public class NegotiationService {
             throw new RuntimeException("Cannot cancel loan in current status");
         }
 
-        loan.setStatus(LoanStatus.CANCELLED);
+        stateMachineService.transition(loan, LoanAction.CANCEL_NEGOTIATION, ActorType.BORROWER);
         loanRepository.save(loan);
 
-        LoanOffer offer = loan.getOffer();
+        LoanOffer offer = loanOfferRepository.findByIdForUpdate(loan.getOffer().getId())
+                .orElseThrow(() -> new RuntimeException("Offer not found"));
         offer.setStatus(LoanOfferStatus.OPEN);
         loanOfferRepository.save(offer);
 
         chatService.sendSystemMessage(loanId, "SYSTEM: Negotiation cancelled by borrower");
+    }
+
+    @Transactional(readOnly = true)
+    public AgreementResponse getAgreement(String email, UUID loanId) {
+        Loan loan = getLoan(loanId);
+        User user = getUser(email);
+
+        if (!loan.getBorrower().getId().equals(user.getId()) && !loan.getLender().getId().equals(user.getId())) {
+             throw new RuntimeException("Only participants can view agreement");
+        }
+
+        return AgreementResponse.builder()
+                .agreementHash(loan.getAgreementHash())
+                .borrowerSignature(loan.getBorrowerSignature())
+                .lenderSignature(loan.getLenderSignature())
+                .agreementFinalizedAt(loan.getAgreementFinalizedAt())
+                .build();
     }
 
     private Loan getLoan(UUID loanId) {

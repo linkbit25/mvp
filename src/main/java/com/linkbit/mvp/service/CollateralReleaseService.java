@@ -6,6 +6,8 @@ import com.linkbit.mvp.domain.LedgerEntryType;
 import com.linkbit.mvp.domain.Loan;
 import com.linkbit.mvp.domain.LoanLedger;
 import com.linkbit.mvp.domain.LoanStatus;
+import com.linkbit.mvp.domain.ActorType;
+import com.linkbit.mvp.domain.LoanAction;
 import com.linkbit.mvp.domain.User;
 import com.linkbit.mvp.repository.CollateralReleaseRepository;
 import com.linkbit.mvp.repository.EscrowAccountRepository;
@@ -33,6 +35,7 @@ public class CollateralReleaseService {
     private final LoanLedgerRepository loanLedgerRepository;
     private final CollateralReleaseRepository collateralReleaseRepository;
     private final UserRepository userRepository;
+    private final StateMachineService stateMachineService;
 
     @Transactional
     public void releaseCollateral(UUID loanId, String adminEmail) {
@@ -42,6 +45,7 @@ public class CollateralReleaseService {
                 .orElseThrow(() -> new IllegalArgumentException("Loan not found: " + loanId));
 
         if (loan.getStatus() != LoanStatus.REPAID) {
+            if (loan.getStatus() == LoanStatus.CLOSED) return;
             throw new IllegalStateException("Collateral release denied. Loan status must be REPAID, but is " + loan.getStatus());
         }
 
@@ -55,7 +59,7 @@ public class CollateralReleaseService {
                 .executedBy(admin.getId())
                 .build());
 
-        loan.setStatus(LoanStatus.CLOSED);
+        stateMachineService.transition(loan, LoanAction.RELEASE_COLLATERAL, ActorType.SYSTEM);
         loan.setCollateralReleasedAt(LocalDateTime.now());
         loan.setCollateralReleasedBtc(releaseAmount);
 

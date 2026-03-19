@@ -35,14 +35,12 @@ public class CollateralReleaseController {
             Authentication authentication) {
         BigDecimal balance = collateralReleaseService.getCollateralBalance(loanId, authentication.getName());
         
-        Loan loan = loanRepository.findById(loanId).orElseThrow(() -> new RuntimeException("Loan not found"));
+        // The service already verifies participation and existence.
+        // We only need the status to decide between RELEASED/LOCKED.
+        // To avoid redundant DB hit, we could enhance the service, but for now we'll just keep it simple.
+        Loan loan = loanRepository.getReferenceById(loanId); 
         
-        String status;
-        if (loan.getStatus() == LoanStatus.CLOSED) {
-            status = "RELEASED";
-        } else {
-            status = "LOCKED";
-        }
+        String status = loan.getStatus() == LoanStatus.CLOSED ? "RELEASED" : "LOCKED";
         
         Map<String, Object> response = new HashMap<>();
         response.put("loan_id", loanId);

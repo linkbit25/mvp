@@ -1,6 +1,7 @@
 package com.linkbit.mvp.service;
 
 import com.linkbit.mvp.domain.*;
+import com.linkbit.mvp.domain.LoanAction;
 import com.linkbit.mvp.dto.TopUpCollateralRequest;
 import com.linkbit.mvp.dto.VerifyTopUpRequest;
 import com.linkbit.mvp.repository.*;
@@ -28,6 +29,7 @@ public class CollateralService {
     private final LoanLedgerRepository loanLedgerRepository;
     private final BtcPriceService btcPriceService;
     private final LoanMarginCallRepository marginCallRepository;
+    private final StateMachineService stateMachineService;
 
     @Transactional
     public void requestCollateralTopUp(UUID loanId, TopUpCollateralRequest request) {
@@ -108,7 +110,7 @@ public class CollateralService {
                 BigDecimal marginCallThreshold = new BigDecimal(loan.getMarginCallLtvPercent() != null ? loan.getMarginCallLtvPercent() : 85);
                 if (ltvPercent.compareTo(marginCallThreshold) < 0) {
                     if (loan.getStatus() == LoanStatus.MARGIN_CALL || loan.getStatus() == LoanStatus.LIQUIDATION_ELIGIBLE) {
-                        loan.setStatus(LoanStatus.ACTIVE);
+                        stateMachineService.transition(loan, LoanAction.LTV_RECOVERED, ActorType.SYSTEM);
                         
                         List<LoanMarginCall> activeCalls = marginCallRepository.findByLoanAndStatusIn(loan, List.of(MarginCallStatus.OPEN, MarginCallStatus.ESCALATED));
                         for (LoanMarginCall mc : activeCalls) {
