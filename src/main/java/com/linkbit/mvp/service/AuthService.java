@@ -31,7 +31,6 @@ public class AuthService {
     private final JwtService jwtService;
     private final AuthenticationManager authenticationManager;
     private final LoginAttemptService loginAttemptService;
-    private final AdminAccessManager adminAccessManager;
 
     @Transactional
     public void register(RegisterRequest request) {
@@ -44,7 +43,8 @@ public class AuthService {
                 .password(passwordEncoder.encode(request.getPassword()))
                 .phoneNumber(request.getPhoneNumber())
                 .pseudonym(request.getPseudonym())
-                .kycStatus(KycStatus.PENDING)
+                .role(com.linkbit.mvp.domain.ActorType.BORROWER)
+                .isEmailVerified(false)
                 .build();
 
         UserKycDetails kycDetails = UserKycDetails.builder()
@@ -113,7 +113,7 @@ public class AuthService {
                 .phoneNumber(user.getPhoneNumber())
                 .pseudonym(user.getPseudonym())
                 .kycStatus(user.getKycStatus())
-                .admin(adminAccessManager.isAdmin(user.getEmail()))
+                .admin(user.getRole() == com.linkbit.mvp.domain.ActorType.ADMIN)
                 .bankDetails(bankDetails)
                 .build();
     }

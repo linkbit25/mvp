@@ -51,6 +51,12 @@ public class CollateralReleaseService {
 
         EscrowAccount escrow = escrowAccountRepository.findByLoanId(loanId)
                 .orElseThrow(() -> new RuntimeException("Escrow account not found for loan: " + loanId));
+        
+        if (escrow.getCurrentBalanceSats() == null || escrow.getCurrentBalanceSats() == 0) {
+            log.info("Collateral for loan {} already released or never deposited. Skipping.", loanId);
+            return;
+        }
+
         BigDecimal releaseAmount = toBtc(escrow.getCurrentBalanceSats());
 
         collateralReleaseRepository.save(CollateralRelease.builder()

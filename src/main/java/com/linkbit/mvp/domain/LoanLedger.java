@@ -34,7 +34,7 @@ public class LoanLedger {
     @Column(name = "entry_type", nullable = false)
     private LedgerEntryType entryType;
 
-    @Column(name = "amount_inr", nullable = false)
+    @Column(name = "amount_inr", nullable = false, precision = 18, scale = 2)
     private BigDecimal amountInr;
 
     @CreationTimestamp

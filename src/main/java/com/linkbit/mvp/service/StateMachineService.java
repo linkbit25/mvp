@@ -2,6 +2,7 @@ package com.linkbit.mvp.service;
 
 import com.linkbit.mvp.domain.*;
 import com.linkbit.mvp.repository.LoanAuditLogRepository;
+import com.linkbit.mvp.repository.LoanRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -9,7 +10,13 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
-import java.util.*;
+import java.util.Map;
+import java.util.Set;
+import java.util.UUID;
+import java.util.EnumMap;
+import java.util.EnumSet;
+import java.util.List;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -17,6 +24,7 @@ import java.util.*;
 public class StateMachineService {
 
     private final LoanAuditLogRepository auditLogRepository;
+    private final LoanRepository loanRepository;
     private final BtcPriceService btcPriceService;
     private final Map<LoanStatus, Map<LoanAction, LoanStatus>> transitionMap = new EnumMap<>(LoanStatus.class);
 
@@ -31,7 +39,7 @@ public class StateMachineService {
     static {
         ADMIN_ALLOWED_TRANSITIONS.put(LoanStatus.AWAITING_FEE, EnumSet.of(LoanStatus.CANCELLED));
         ADMIN_ALLOWED_TRANSITIONS.put(LoanStatus.AWAITING_COLLATERAL, EnumSet.of(LoanStatus.CANCELLED));
-        ADMIN_ALLOWED_TRANSITIONS.put(LoanStatus.ACTIVE, EnumSet.of(LoanStatus.MARGIN_CALL, LoanStatus.LIQUIDATION_ELIGIBLE, LoanStatus.CLOSED));
+        ADMIN_ALLOWED_TRANSITIONS.put(LoanStatus.ACTIVE, EnumSet.of(LoanStatus.MARGIN_CALL, LoanStatus.LIQUIDATION_ELIGIBLE));
         ADMIN_ALLOWED_TRANSITIONS.put(LoanStatus.MARGIN_CALL, EnumSet.of(LoanStatus.ACTIVE, LoanStatus.LIQUIDATION_ELIGIBLE));
         ADMIN_ALLOWED_TRANSITIONS.put(LoanStatus.LIQUIDATION_ELIGIBLE, EnumSet.of(LoanStatus.ACTIVE));
     }
@@ -45,8 +53,10 @@ public class StateMachineService {
         addTransition(LoanStatus.AWAITING_SIGNATURES, LoanAction.SIGN_CONTRACT, LoanStatus.AWAITING_FEE);
         
         addTransition(LoanStatus.AWAITING_FEE, LoanAction.PAY_FEE, LoanStatus.AWAITING_COLLATERAL);
+        addTransition(LoanStatus.AWAITING_FEE, LoanAction.TIMEOUT_CANCEL, LoanStatus.CANCELLED);
         
         addTransition(LoanStatus.AWAITING_COLLATERAL, LoanAction.DEPOSIT_COLLATERAL, LoanStatus.COLLATERAL_LOCKED);
+        addTransition(LoanStatus.AWAITING_COLLATERAL, LoanAction.TIMEOUT_CANCEL, LoanStatus.CANCELLED);
         
         addTransition(LoanStatus.COLLATERAL_LOCKED, LoanAction.DISBURSE_FIAT, LoanStatus.ACTIVE);
         addTransition(LoanStatus.COLLATERAL_LOCKED, LoanAction.MARK_DISPUTE, LoanStatus.DISPUTE_OPEN);
@@ -64,8 +74,7 @@ public class StateMachineService {
         addTransition(LoanStatus.LIQUIDATION_ELIGIBLE, LoanAction.LTV_RECOVERED, LoanStatus.ACTIVE);
         addTransition(LoanStatus.LIQUIDATION_ELIGIBLE, LoanAction.EXECUTE_LIQUIDATION, LoanStatus.LIQUIDATED);
         
-        // Collateral Release can happen from ACTIVE or REPAID based on current logic
-        addTransition(LoanStatus.ACTIVE, LoanAction.RELEASE_COLLATERAL, LoanStatus.CLOSED);
+        // Collateral Release can only happen from REPAID state
         addTransition(LoanStatus.REPAID, LoanAction.RELEASE_COLLATERAL, LoanStatus.CLOSED);
     }
 
@@ -110,9 +119,19 @@ public class StateMachineService {
             throw new IllegalStateException("Invariant violated: No fiat disbursement before collateral locked");
         }
 
-        // Invariant 2: No loan closure without repayment
-        if (next == LoanStatus.CLOSED && loan.getPrincipalOutstanding() != null && loan.getPrincipalOutstanding().compareTo(BigDecimal.ZERO) > 0) {
-            throw new IllegalStateException("Invariant violated: No loan closure while principal is outstanding: " + loan.getPrincipalOutstanding());
+        // Invariant 2: No loan closure without full repayment (principal + interest)
+        if (next == LoanStatus.CLOSED) {
+            BigDecimal outstanding = loan.getTotalOutstanding();
+            if (outstanding == null || outstanding.compareTo(BigDecimal.ZERO) > 0) {
+                throw new IllegalStateException("CRITICAL INVARIANT VIOLATION: Cannot CLOSE loan " + loan.getId() + " with outstanding balance: " + outstanding);
+            }
+        }
+        
+        // Invariant 4: Active loans must have collateral
+        if (next == LoanStatus.ACTIVE || next == LoanStatus.MARGIN_CALL || next == LoanStatus.LIQUIDATION_ELIGIBLE) {
+            if (loan.getCollateralBtcAmount() == null || loan.getCollateralBtcAmount().compareTo(BigDecimal.ZERO) <= 0) {
+                throw new IllegalStateException("CRITICAL INVARIANT VIOLATION: Loan " + loan.getId() + " cannot be ACTIVE without collateral.");
+            }
         }
 
         // Invariant 3: No liquidation without eligibility
@@ -143,6 +162,7 @@ public class StateMachineService {
         log.info("Loan {}: {} -> {} via {} by {}", loan.getId(), current, next, action, actor);
         loan.setStatus(next);
         saveAuditLog(loan, current, next, action, actor);
+        loanRepository.save(loan);
     }
 
     @Transactional
@@ -172,14 +192,21 @@ public class StateMachineService {
             }
         }
 
-        // Invariant 2: No loan closure without repayment
-        if (targetStatus == LoanStatus.CLOSED && loan.getPrincipalOutstanding() != null && loan.getPrincipalOutstanding().compareTo(BigDecimal.ZERO) > 0) {
-            throw new IllegalStateException("Invariant violated: No loan closure while principal is outstanding: " + loan.getPrincipalOutstanding());
+        // Invariant 2: No loan closure without full repayment
+        if (targetStatus == LoanStatus.CLOSED) {
+            BigDecimal outstanding = loan.getTotalOutstanding();
+            if (outstanding == null) {
+                throw new IllegalStateException("Invariant violated: Total outstanding balance is missing for loan " + loan.getId());
+            }
+            if (outstanding.compareTo(BigDecimal.ZERO) > 0) {
+                throw new IllegalStateException("Invariant violated: No loan closure while balance is outstanding: " + outstanding);
+            }
         }
 
         log.info("Loan {}: {} -> {} via ADMIN_OVERRIDE", loan.getId(), current, targetStatus);
         loan.setStatus(targetStatus);
         saveAuditLog(loan, current, targetStatus, LoanAction.ADMIN_OVERRIDE, ActorType.ADMIN);
+        loanRepository.save(loan);
     }
 
     private void saveAuditLog(Loan loan, LoanStatus previous, LoanStatus next, LoanAction action, ActorType actor) {

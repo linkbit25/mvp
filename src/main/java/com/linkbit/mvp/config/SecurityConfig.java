@@ -20,6 +20,7 @@ import java.util.Arrays;
 
 @Configuration
 @EnableWebSecurity
+@org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity
 @RequiredArgsConstructor
 public class SecurityConfig {
 
@@ -53,7 +54,7 @@ public class SecurityConfig {
                 .requestMatchers(new AntPathRequestMatcher("/swagger-ui/index.html")).access((authentication, context) -> adminAccessManager.allowPublicWhenEnabled(authentication, swaggerUiEnabled))
                 .requestMatchers(new AntPathRequestMatcher("/api-docs/**")).access((authentication, context) -> adminAccessManager.allowPublicWhenEnabled(authentication, apiDocsEnabled))
                 .requestMatchers(new AntPathRequestMatcher("/h2-console/**")).access((authentication, context) -> adminAccessManager.allowPublicWhenEnabled(authentication, h2ConsoleEnabled))
-                .requestMatchers(new AntPathRequestMatcher("/admin/**")).access(adminAccessManager)
+                .requestMatchers(new AntPathRequestMatcher("/admin/**")).hasRole("ADMIN")
                 .requestMatchers(new AntPathRequestMatcher("/payments/**")).authenticated()
                 .requestMatchers(new AntPathRequestMatcher("/loans/*/escrow/**")).authenticated()
                 .requestMatchers(new AntPathRequestMatcher("/loans/*/deposit")).authenticated()

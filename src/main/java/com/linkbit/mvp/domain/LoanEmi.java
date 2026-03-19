@@ -37,10 +37,10 @@ public class LoanEmi {
     @Column(name = "due_date", nullable = false)
     private LocalDate dueDate;
 
-    @Column(name = "emi_amount", nullable = false)
+    @Column(name = "emi_amount", nullable = false, precision = 18, scale = 2)
     private BigDecimal emiAmount;
 
-    @Column(name = "amount_paid", nullable = false)
+    @Column(name = "amount_paid", nullable = false, precision = 18, scale = 2)
     @Builder.Default
     private BigDecimal amountPaid = BigDecimal.ZERO;
 

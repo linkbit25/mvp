@@ -5,6 +5,7 @@ import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 
 import java.time.LocalDateTime;
@@ -36,8 +37,15 @@ public class User implements UserDetails {
     private String pseudonym;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "kyc_status", nullable = false)
-    private KycStatus kycStatus;
+    @Column(name = "role", nullable = false)
+    private ActorType role = ActorType.BORROWER; 
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "kyc_status")
+    private KycStatus kycStatus = KycStatus.PENDING;
+
+    @Column(name = "is_email_verified")
+    private boolean isEmailVerified = false;
 
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)
@@ -54,7 +62,7 @@ public class User implements UserDetails {
 
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
-        return Collections.emptyList(); // No roles for now
+        return Collections.singletonList(new SimpleGrantedAuthority("ROLE_" + role.name()));
     }
 
     @Override

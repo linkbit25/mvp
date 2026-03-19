@@ -21,6 +21,9 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDateTime;
 import java.util.List;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 
 @Slf4j
 @Service
@@ -34,7 +37,7 @@ public class LtvMonitoringWorker {
     private final ChatService chatService;
     private final StateMachineService stateMachineService;
 
-    @Scheduled(fixedRate = 1000)
+    @Scheduled(fixedRate = 30000)
     @Transactional
     public void monitorLtvLevels() {
         BigDecimal currentBtcPrice;
@@ -49,11 +52,34 @@ public class LtvMonitoringWorker {
             return;
         }
 
-        List<Loan> monitoredLoans = loanRepository.findByStatusIn(List.of(LoanStatus.ACTIVE, LoanStatus.MARGIN_CALL, LoanStatus.LIQUIDATION_ELIGIBLE));
+        int pageSize = 100;
+        int pageNumber = 0;
+        Page<Loan> loanPage;
 
-        for (Loan loan : monitoredLoans) {
-            processLoanLtv(loan, currentBtcPrice);
-        }
+        do {
+            Pageable pageable = PageRequest.of(pageNumber, pageSize);
+            loanPage = loanRepository.findByStatusIn(
+                List.of(LoanStatus.ACTIVE, LoanStatus.MARGIN_CALL, LoanStatus.LIQUIDATION_ELIGIBLE), 
+                pageable
+            );
+
+            for (Loan loan : loanPage.getContent()) {
+                try {
+                    processLoanLtvBatch(loan.getId(), currentBtcPrice);
+                } catch (Exception e) {
+                    log.error("Error processing loan LTV: {}", loan.getId(), e);
+                }
+            }
+            pageNumber++;
+        } while (loanPage.hasNext());
+    }
+
+    private void processLoanLtvBatch(java.util.UUID loanId, BigDecimal currentBtcPrice) {
+        // Fetch with pessimistic write lock to prevent race conditions during LTV check
+        Loan loan = loanRepository.findByIdWithLock(loanId)
+                .orElseThrow(() -> new RuntimeException("Loan not found for locking: " + loanId));
+        
+        processLoanLtv(loan, currentBtcPrice);
     }
 
     private void processLoanLtv(Loan loan, BigDecimal currentBtcPrice) {

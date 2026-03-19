@@ -30,7 +30,7 @@ public class LoanRepayment {
     @OnDelete(action = OnDeleteAction.CASCADE)
     private Loan loan;
 
-    @Column(name = "amount_inr", nullable = false)
+    @Column(name = "amount_inr", nullable = false, precision = 18, scale = 2)
     private BigDecimal amountInr;
 
     @Column(name = "transaction_reference", nullable = false)

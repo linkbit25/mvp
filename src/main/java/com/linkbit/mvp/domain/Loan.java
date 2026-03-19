@@ -11,7 +11,12 @@ import java.util.List;
 import java.util.UUID;
 
 @Entity
-@Table(name = "loans")
+@Table(name = "loans", indexes = {
+    @Index(name = "idx_loans_status", columnList = "status"),
+    @Index(name = "idx_loans_borrower_id", columnList = "borrower_id"),
+    @Index(name = "idx_loans_lender_id", columnList = "lender_id"),
+    @Index(name = "idx_loans_updated_at", columnList = "updated_at")
+})
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
@@ -37,10 +42,10 @@ public class Loan {
     @JoinColumn(name = "borrower_id", nullable = false)
     private User borrower;
 
-    @Column(name = "principal_amount", nullable = false)
+    @Column(name = "principal_amount", nullable = false, precision = 18, scale = 2)
     private BigDecimal principalAmount;
 
-    @Column(name = "interest_rate", nullable = false)
+    @Column(name = "interest_rate", nullable = false, precision = 5, scale = 2)
     private BigDecimal interestRate;
 
     @Column(name = "tenure_days", nullable = false)
@@ -53,31 +58,31 @@ public class Loan {
     @Column(name = "emi_count")
     private Integer emiCount;
 
-    @Column(name = "emi_amount")
+    @Column(name = "emi_amount", precision = 18, scale = 2)
     private BigDecimal emiAmount;
 
-    @Column(name = "total_repayment_amount")
+    @Column(name = "total_repayment_amount", precision = 18, scale = 2)
     private BigDecimal totalRepaymentAmount;
 
-    @Column(name = "principal_outstanding")
+    @Column(name = "principal_outstanding", precision = 18, scale = 2)
     private BigDecimal principalOutstanding;
 
-    @Column(name = "interest_outstanding")
+    @Column(name = "interest_outstanding", precision = 18, scale = 2)
     private BigDecimal interestOutstanding;
 
-    @Column(name = "total_outstanding")
+    @Column(name = "total_outstanding", precision = 18, scale = 2)
     private BigDecimal totalOutstanding;
 
     @Column(name = "expected_ltv_percent")
     private Integer expectedLtvPercent;
 
-    @Column(name = "collateral_btc_amount")
+    @Column(name = "collateral_btc_amount", precision = 24, scale = 8)
     private BigDecimal collateralBtcAmount;
 
-    @Column(name = "collateral_value_inr")
+    @Column(name = "collateral_value_inr", precision = 18, scale = 2)
     private BigDecimal collateralValueInr;
 
-    @Column(name = "current_ltv_percent")
+    @Column(name = "current_ltv_percent", precision = 5, scale = 2)
     private BigDecimal currentLtvPercent;
 
     @Column(name = "last_price_update")
@@ -128,22 +133,22 @@ public class Loan {
     @Column(name = "liquidation_executed_at")
     private LocalDateTime liquidationExecutedAt;
 
-    @Column(name = "liquidation_price_inr")
+    @Column(name = "liquidation_price_inr", precision = 18, scale = 2)
     private BigDecimal liquidationPriceInr;
 
-    @Column(name = "lender_repayment_amount")
+    @Column(name = "lender_repayment_amount", precision = 18, scale = 2)
     private BigDecimal lenderRepaymentAmount;
 
-    @Column(name = "borrower_return_amount")
+    @Column(name = "borrower_return_amount", precision = 18, scale = 2)
     private BigDecimal borrowerReturnAmount;
 
-    @Column(name = "liquidation_penalty_amount")
+    @Column(name = "liquidation_penalty_amount", precision = 18, scale = 2)
     private BigDecimal liquidationPenaltyAmount;
 
     @Column(name = "collateral_released_at")
     private LocalDateTime collateralReleasedAt;
 
-    @Column(name = "collateral_released_btc")
+    @Column(name = "collateral_released_btc", precision = 24, scale = 8)
     private BigDecimal collateralReleasedBtc;
 
     @OneToMany(mappedBy = "loan", cascade = CascadeType.ALL, fetch = FetchType.LAZY)

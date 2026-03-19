@@ -3,12 +3,14 @@ package com.linkbit.mvp.controller;
 import com.linkbit.mvp.service.LiquidationService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.UUID;
 
 @RestController
-@RequestMapping("/admin/loans")
+@RequestMapping("/admin/liquidations")
+@PreAuthorize("hasRole('ADMIN')")
 @RequiredArgsConstructor
 public class AdminLiquidationController {
 
