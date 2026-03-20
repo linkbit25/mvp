@@ -14,4 +14,7 @@ public class AuthResponse {
     private String refreshToken;
     private UUID userId;
     private KycStatus kycStatus;
+    private String email;
+    private String role;
+    private String name;
 }

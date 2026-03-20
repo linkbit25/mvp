@@ -41,8 +41,8 @@ public class NegotiationService {
         Loan loan = getLoan(loanId);
         User lender = getUser(email);
 
-        if (!loan.getLender().getId().equals(lender.getId())) {
-            throw new RuntimeException("Only lender can update terms");
+        if (!loan.getLender().getId().equals(lender.getId()) && !loan.getBorrower().getId().equals(lender.getId())) {
+            throw new RuntimeException("Only participants can update terms");
         }
         if (loan.getStatus() != LoanStatus.NEGOTIATING) {
             throw new RuntimeException("Loan is not in negotiating status");
@@ -58,7 +58,7 @@ public class NegotiationService {
         loan.setLiquidationLtvPercent(request.getLiquidationLtvPercent());
         loanRepository.save(loan);
 
-        chatService.sendSystemMessage(loanId, "SYSTEM: Terms updated by lender");
+        chatService.sendSystemMessage(loanId, "SYSTEM: Terms updated by " + lender.getPseudonym());
     }
 
     @Transactional
@@ -66,8 +66,8 @@ public class NegotiationService {
         Loan loan = getLoan(loanId);
         User lender = getUser(email);
 
-        if (!loan.getLender().getId().equals(lender.getId())) {
-            throw new RuntimeException("Only lender can finalize contract");
+        if (!loan.getLender().getId().equals(lender.getId()) && !loan.getBorrower().getId().equals(lender.getId())) {
+            throw new RuntimeException("Only participants can finalize contract");
         }
         if (loan.getStatus() != LoanStatus.NEGOTIATING) {
             throw new RuntimeException("Loan is not in negotiating status");
@@ -91,7 +91,8 @@ public class NegotiationService {
         loan.setAgreementFinalizedAt(finalizedAt);
         loan.setAgreementHash(generateHash(buildAgreementData(loan, finalizedAt)));
         
-        stateMachineService.transition(loan, LoanAction.FINALIZE_CONTRACT, ActorType.LENDER);
+        ActorType actorType = loan.getLender().getId().equals(lender.getId()) ? ActorType.LENDER : ActorType.BORROWER;
+        stateMachineService.transition(loan, LoanAction.FINALIZE_CONTRACT, actorType);
 
         offer.setStatus(LoanOfferStatus.CLOSED);
         loanOfferRepository.save(offer);

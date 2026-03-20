@@ -89,6 +89,9 @@ public class AuthService {
                 .refreshToken(refreshToken)
                 .userId(user.getId())
                 .kycStatus(user.getKycStatus())
+                .email(user.getEmail())
+                .role(user.getRole().name())
+                .name(user.getPseudonym())
                 .build();
     }
 

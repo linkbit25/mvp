@@ -5,6 +5,7 @@ import { LoginPage } from '@/features/auth/LoginPage';
 import { RegisterPage } from '@/features/auth/RegisterPage';
 import { DashboardPage } from '@/features/dashboard/DashboardPage';
 import { MarketplacePage } from '@/features/marketplace/MarketplacePage';
+import { CreateOfferPage } from '@/features/marketplace/CreateOfferPage';
 import { KycPage } from '@/features/kyc/KycPage';
 import { LoanNegotiationPage } from '@/features/loans/LoanNegotiationPage';
 import { LoanAgreementPage } from '@/features/loans/LoanAgreementPage';
@@ -16,6 +17,7 @@ import { LoanClosurePage } from '@/features/loans/LoanClosurePage';
 import { AdminDashboardPage } from '@/features/admin/AdminDashboardPage';
 
 const Marketplace = () => <MarketplacePage />;
+const CreateOffer = () => <CreateOfferPage />;
 const Kyc = () => <KycPage />;
 
 const LoanDetail = () => <LoanNegotiationPage />;
@@ -54,6 +56,10 @@ export const router = createBrowserRouter([
           {
             path: 'marketplace',
             element: <Marketplace />,
+          },
+          {
+            path: 'offers/create',
+            element: <CreateOffer />,
           },
           {
             path: 'kyc',

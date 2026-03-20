@@ -1,7 +1,7 @@
 package com.linkbit.mvp.controller;
 
 import com.linkbit.mvp.dto.PendingRepaymentResponse;
-import com.linkbit.mvp.service.CollateralService;
+import com.linkbit.mvp.service.EscrowService;
 import com.linkbit.mvp.service.RepaymentService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -17,7 +17,7 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class AdminController {
 
-    private final CollateralService collateralService;
+    private final EscrowService escrowService;
     private final RepaymentService repaymentService;
 
     /** List all PENDING repayments across every loan — for the admin repayment verification panel */
@@ -38,7 +38,7 @@ public class AdminController {
     public ResponseEntity<Void> verifyDeposit(
             @PathVariable UUID loanId,
             Authentication auth) {
-        collateralService.verifyCollateralDeposit(loanId, auth.getName());
+        escrowService.verifyDeposit(loanId);
         return ResponseEntity.ok().build();
     }
 }

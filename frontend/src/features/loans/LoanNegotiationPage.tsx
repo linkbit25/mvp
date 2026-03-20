@@ -111,9 +111,6 @@ export const LoanNegotiationPage = () => {
 
   const finalizeMutation = useMutation({
     mutationFn: () => {
-      if (!window.confirm('Are you sure you want to finalize these terms? This will lock the negotiation and move to the signing phase.')) {
-        throw new Error('Cancelled');
-      }
       return api.post(`/loans/${loanId}/finalize`);
     },
     onSuccess: () => {
@@ -123,9 +120,6 @@ export const LoanNegotiationPage = () => {
 
   const cancelMutation = useMutation({
     mutationFn: () => {
-      if (!window.confirm('Are you sure you want to cancel this negotiation?')) {
-        throw new Error('Cancelled');
-      }
       return api.post(`/loans/${loanId}/cancel`);
     },
     onSuccess: () => navigate('/dashboard')

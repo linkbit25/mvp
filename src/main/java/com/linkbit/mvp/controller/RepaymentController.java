@@ -45,9 +45,5 @@ public class RepaymentController {
         return ResponseEntity.ok(start >= response.size() ? List.of() : response.subList(start, end));
     }
 
-    @PostMapping("/admin/repayments/{repaymentId}/verify")
-    public ResponseEntity<Void> verifyRepayment(@PathVariable UUID repaymentId) {
-        repaymentService.verifyRepayment(repaymentId);
-        return ResponseEntity.accepted().build();
-    }
+
 }

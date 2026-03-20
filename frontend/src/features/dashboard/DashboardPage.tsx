@@ -17,6 +17,7 @@ import {
   Loader2,
   RefreshCcw
 } from 'lucide-react';
+import { useAuthStore } from '@/store/authStore';
 
 const StatCard = ({ title, value, subValue, icon: Icon, colorClass }: any) => (
   <Card className="border-slate-200 hover:shadow-md transition-all duration-200">
@@ -66,6 +67,7 @@ const getActionLabel = (status: string): string => {
 
 export const DashboardPage = () => {
   const navigate = useNavigate();
+  const { user } = useAuthStore();
   const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
   const [timeAgo, setTimeAgo] = useState<string>('0s ago');
 
@@ -73,7 +75,7 @@ export const DashboardPage = () => {
     queryKey: ['my-loans'],
     queryFn: async () => {
       const response = await api.get('/loans/mine');
-      return response.data;
+      return response.data.content || response.data;
     },
     refetchInterval: 30000,
   });
@@ -146,12 +148,21 @@ export const DashboardPage = () => {
             </div>
           </div>
         </div>
-        <Link to="/marketplace">
-          <Button className="bg-indigo-600 hover:bg-indigo-700 shadow-sm">
-            <Plus className="h-4 w-4 mr-2" />
-            New Loan Request
-          </Button>
-        </Link>
+        {user?.role === 'LENDER' ? (
+          <Link to="/offers/create">
+            <Button className="bg-indigo-600 hover:bg-indigo-700 shadow-sm">
+              <Plus className="h-4 w-4 mr-2" />
+              Create Offer
+            </Button>
+          </Link>
+        ) : (
+          <Link to="/marketplace">
+            <Button className="bg-indigo-600 hover:bg-indigo-700 shadow-sm">
+              <Plus className="h-4 w-4 mr-2" />
+              New Loan Request
+            </Button>
+          </Link>
+        )}
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
