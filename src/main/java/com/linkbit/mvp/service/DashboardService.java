@@ -23,6 +23,9 @@ import org.springframework.stereotype.Service;
 
 import java.util.List;
 import java.util.UUID;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.Pageable;
 
 @Service
 @RequiredArgsConstructor
@@ -34,13 +37,18 @@ public class DashboardService {
     private final LoanRepaymentRepository loanRepaymentRepository;
     private final EscrowAccountRepository escrowAccountRepository;
 
-    public List<LoanSummaryResponse> getMyLoans(String email) {
+    public Page<LoanSummaryResponse> getMyLoans(String email, Pageable pageable) {
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new UsernameNotFoundException("User not found"));
 
-        return loanRepository.findDashboardLoansByUserId(user.getId()).stream()
+        List<LoanSummaryResponse> summaries = loanRepository.findDashboardLoansByUserId(user.getId()).stream()
                 .map(loan -> toSummary(loan, user.getId()))
                 .toList();
+
+        int start = (int) pageable.getOffset();
+        int end = Math.min(start + pageable.getPageSize(), summaries.size());
+        List<LoanSummaryResponse> page = start >= summaries.size() ? List.of() : summaries.subList(start, end);
+        return new PageImpl<>(page, pageable, summaries.size());
     }
 
     public LoanDetailResponse getLoanDetail(String email, UUID loanId) {

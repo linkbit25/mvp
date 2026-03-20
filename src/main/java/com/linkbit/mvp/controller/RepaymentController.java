@@ -11,6 +11,10 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 import java.util.UUID;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
+import org.springframework.web.bind.annotation.RequestParam;
 
 @RestController
 @RequiredArgsConstructor
@@ -31,10 +35,14 @@ public class RepaymentController {
     @GetMapping("/loans/{loanId}/ledger")
     public ResponseEntity<List<LedgerResponse>> getLoanLedger(
             @PathVariable UUID loanId,
-            Authentication authentication) {
-        
+            Authentication authentication,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "50") int size) {
+
         List<LedgerResponse> response = repaymentService.getLoanLedger(loanId, authentication.getName());
-        return ResponseEntity.ok(response);
+        int start = page * size;
+        int end = Math.min(start + size, response.size());
+        return ResponseEntity.ok(start >= response.size() ? List.of() : response.subList(start, end));
     }
 
     @PostMapping("/admin/repayments/{repaymentId}/verify")

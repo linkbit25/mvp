@@ -38,6 +38,7 @@ public class EscrowController {
         return ResponseEntity.status(HttpStatus.ACCEPTED).build();
     }
 
+    @org.springframework.security.access.prepost.PreAuthorize("hasRole('ADMIN')")
     @PostMapping("/admin/collateral/{loanId}/verify")
     public ResponseEntity<Void> verifyCollateralDeposit(@PathVariable UUID loanId) {
         escrowService.verifyDeposit(loanId);
@@ -54,6 +55,7 @@ public class EscrowController {
         return ResponseEntity.status(HttpStatus.ACCEPTED).build();
     }
 
+    @org.springframework.security.access.prepost.PreAuthorize("hasRole('ADMIN')")
     @PostMapping("/admin/collateral/{loanId}/verify-topup")
     public ResponseEntity<Void> verifyTopup(@PathVariable UUID loanId) {
         escrowService.verifyTopup(loanId);

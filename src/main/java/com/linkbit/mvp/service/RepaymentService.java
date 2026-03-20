@@ -41,6 +41,7 @@ public class RepaymentService {
     private final UserRepository userRepository;
     private final ChatService chatService;
     private final StateMachineService stateMachineService;
+    private final CollateralReleaseService collateralReleaseService;
 
     @Transactional
     public void initializeLoanFinancials(Loan loan) {
@@ -134,7 +135,9 @@ public class RepaymentService {
         if (loan.getTotalOutstanding().compareTo(BigDecimal.ZERO) == 0) {
             stateMachineService.transition(loan, LoanAction.REPAY_LOAN, ActorType.SYSTEM);
             loanRepository.save(loan);
-            chatService.sendSystemMessage(loan.getId(), "SYSTEM: Loan is fully REPAID. Pending collateral release.");
+            chatService.sendSystemMessage(loan.getId(), "SYSTEM: Loan is fully REPAID. Initiating automated collateral release.");
+            // Automatically release collateral — no manual admin step required
+            collateralReleaseService.releaseCollateral(loan.getId(), "system@linkbit.internal");
         }
     }
 
@@ -194,6 +197,7 @@ public class RepaymentService {
                 .map(ledger -> LedgerResponse.builder()
                         .type(ledger.getEntryType())
                         .amount(ledger.getAmountInr())
+                        .createdAt(ledger.getCreatedAt())
                         .build())
                 .collect(Collectors.toList());
     }
@@ -216,4 +220,20 @@ public class RepaymentService {
         return loanRepository.findById(loanId)
                 .orElseThrow(() -> new RuntimeException("Loan not found"));
     }
+
+    /** Admin-only: fetch all PENDING repayments across all loans */
+    @Transactional(readOnly = true)
+    public List<com.linkbit.mvp.dto.PendingRepaymentResponse> getAllPendingRepayments() {
+        return repaymentRepository.findByStatusOrderByCreatedAtDesc(RepaymentStatus.PENDING).stream()
+                .map(r -> com.linkbit.mvp.dto.PendingRepaymentResponse.builder()
+                        .repaymentId(r.getId())
+                        .amountInr(r.getAmountInr())
+                        .transactionReference(r.getTransactionReference())
+                        .proofUrl(r.getProofUrl())
+                        .status(r.getStatus())
+                        .createdAt(r.getCreatedAt())
+                        .build())
+                .collect(Collectors.toList());
+    }
 }
+

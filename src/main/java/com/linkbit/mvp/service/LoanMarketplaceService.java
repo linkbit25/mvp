@@ -117,7 +117,11 @@ public class LoanMarketplaceService {
     @Transactional
     public UUID connectOffer(String email, UUID offerId) {
         User borrower = getUser(email);
-        
+
+        if (borrower.getKycStatus() != KycStatus.VERIFIED) {
+            throw new RuntimeException("KYC verification required to connect to a loan offer");
+        }
+
         // Use pessimistic lock to prevent concurrent connections to the same offer
         LoanOffer offer = loanOfferRepository.findByIdForUpdate(offerId)
                 .orElseThrow(() -> new RuntimeException("Offer not found"));

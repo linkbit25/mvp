@@ -33,9 +33,11 @@ public class DataInitializer implements CommandLineRunner {
         log.info("Seeding sample data...");
 
         // 1. Create Users
-        User lender = createUser("lender@linkbit.com", "LenderNode", "9988776655", KycStatus.VERIFIED);
-        User borrower = createUser("borrower@linkbit.com", "SatoshiBorrower", "8877665544", KycStatus.VERIFIED);
-        User admin = createUser("admin@linkbit.com", "SystemAdmin", "0000000000", KycStatus.VERIFIED);
+        User lender = createUser("lender@linkbit.com", "LenderNode", "9988776655", KycStatus.VERIFIED, ActorType.LENDER);
+        User borrower = createUser("borrower@linkbit.com", "SatoshiBorrower", "8877665544", KycStatus.VERIFIED, ActorType.BORROWER);
+        User admin = createUser("admin@linkbit.com", "SystemAdmin", "0000000000", KycStatus.VERIFIED, ActorType.ADMIN);
+        // System service account — required by CollateralReleaseService.releaseCollateral() on auto-release
+        createUser("system@linkbit.internal", "SystemService", "0000000001", KycStatus.VERIFIED, ActorType.SYSTEM);
 
         // 2. Create Loan Offers
         createOffer(lender, new BigDecimal("100000"), new BigDecimal("12.5"), 50, 90);
@@ -57,13 +59,14 @@ public class DataInitializer implements CommandLineRunner {
         log.info("Sample data seeded successfully.");
     }
 
-    private User createUser(String email, String pseudonym, String phone, KycStatus status) {
+    private User createUser(String email, String pseudonym, String phone, KycStatus status, ActorType role) {
         User user = User.builder()
                 .email(email)
                 .password(passwordEncoder.encode("password123"))
                 .phoneNumber(phone)
                 .pseudonym(pseudonym)
                 .kycStatus(status)
+                .role(role)
                 .build();
 
         UserKycDetails kycDetails = UserKycDetails.builder()

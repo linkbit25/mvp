@@ -26,6 +26,7 @@ public class StateMachineService {
     private final LoanAuditLogRepository auditLogRepository;
     private final LoanRepository loanRepository;
     private final BtcPriceService btcPriceService;
+    private final NotificationService notificationService;
     private final Map<LoanStatus, Map<LoanAction, LoanStatus>> transitionMap = new EnumMap<>(LoanStatus.class);
 
     private static final Set<LoanStatus> TERMINAL_STATES = EnumSet.of(
@@ -162,7 +163,12 @@ public class StateMachineService {
         log.info("Loan {}: {} -> {} via {} by {}", loan.getId(), current, next, action, actor);
         loan.setStatus(next);
         saveAuditLog(loan, current, next, action, actor);
-        return loanRepository.save(loan);
+        Loan saved = loanRepository.save(loan);
+        // Notify both parties of every state change
+        notificationService.createForBothParties(saved,
+                toNotificationTitle(next),
+                String.format("Loan %s moved to %s.", saved.getId().toString().substring(0, 8), next));
+        return saved;
     }
 
     @Transactional
@@ -223,4 +229,23 @@ public class StateMachineService {
         return transitionMap.values().stream()
                 .anyMatch(m -> m.get(action) == currentStatus);
     }
+
+    private String toNotificationTitle(LoanStatus status) {
+        return switch (status) {
+            case NEGOTIATING -> "Loan Negotiation Started";
+            case AWAITING_SIGNATURES -> "Awaiting Signatures";
+            case AWAITING_FEE -> "Platform Fee Required";
+            case AWAITING_COLLATERAL -> "Collateral Deposit Required";
+            case COLLATERAL_LOCKED -> "Collateral Locked in Escrow";
+            case ACTIVE -> "Loan is Now Active";
+            case REPAID -> "Loan Fully Repaid";
+            case CLOSED -> "Loan Closed";
+            case CANCELLED -> "Loan Cancelled";
+            case DISPUTE_OPEN -> "\u26a0\ufe0f Dispute Opened";
+            case MARGIN_CALL -> "\u26a0\ufe0f Margin Call Triggered";
+            case LIQUIDATION_ELIGIBLE -> "\u26a0\ufe0f Eligible for Liquidation";
+            case LIQUIDATED -> "Loan Liquidated";
+        };
+    }
 }
+
