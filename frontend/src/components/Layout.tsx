@@ -45,10 +45,10 @@ export const Layout = () => {
             
             <div className="flex items-center gap-4">
               <NotificationBell />
-              <div className="text-right mr-2">
-                <p className="text-sm font-medium text-slate-900">{user?.name || 'User'}</p>
+              <Link to="/profile" className="text-right mr-2 hover:bg-slate-100 p-1.5 rounded-lg transition-colors cursor-pointer group">
+                <p className="text-sm font-medium text-slate-900 group-hover:text-indigo-600 transition-colors">{user?.name || 'User'}</p>
                 <p className="text-xs text-slate-500 uppercase tracking-wider font-semibold">{user?.role || 'CLIENT'}</p>
-              </div>
+              </Link>
               <Button variant="ghost" size="icon" onClick={handleLogout} title="Logout">
                 <LogOut className="h-5 w-5 text-slate-500" />
               </Button>

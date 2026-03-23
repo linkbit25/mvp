@@ -33,8 +33,8 @@ public class DataInitializer implements CommandLineRunner {
         log.info("Seeding sample data...");
 
         // 1. Create Users
-        User lender = createUser("lender@linkbit.com", "LenderNode", "9988776655", KycStatus.VERIFIED, ActorType.LENDER);
-        User borrower = createUser("borrower@linkbit.com", "SatoshiBorrower", "8877665544", KycStatus.VERIFIED, ActorType.BORROWER);
+        User lender = createUser("lender@linkbit.com", "LenderNode", "9988776655", KycStatus.VERIFIED, ActorType.USER);
+        User borrower = createUser("borrower@linkbit.com", "SatoshiBorrower", "8877665544", KycStatus.VERIFIED, ActorType.USER);
         User admin = createUser("admin@linkbit.com", "SystemAdmin", "0000000000", KycStatus.VERIFIED, ActorType.ADMIN);
         // System service account — required by CollateralReleaseService.releaseCollateral() on auto-release
         createUser("system@linkbit.internal", "SystemService", "0000000001", KycStatus.VERIFIED, ActorType.SYSTEM);

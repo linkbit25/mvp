@@ -65,6 +65,14 @@ public class RepaymentControllerTest {
 
     @BeforeEach
     void setUp() {
+        ledgerRepository.deleteAll();
+        repaymentRepository.deleteAll();
+        emiRepository.deleteAll();
+        escrowAccountRepository.deleteAll();
+        loanRepository.deleteAll();
+        loanOfferRepository.deleteAll();
+        userRepository.deleteAll();
+
         lender = User.builder()
                 .email("lender_repay@example.com")
                 .password("password")
@@ -82,6 +90,22 @@ public class RepaymentControllerTest {
                 .kycStatus(KycStatus.VERIFIED)
                 .build();
         userRepository.save(borrower);
+
+        userRepository.findByEmail("admin@example.com").orElseGet(() ->
+                userRepository.save(User.builder()
+                        .email("admin@example.com")
+                        .password("password")
+                        .kycStatus(KycStatus.VERIFIED)
+                        .role(ActorType.ADMIN)
+                        .build()));
+
+        userRepository.findByEmail("system@linkbit.internal").orElseGet(() ->
+                userRepository.save(User.builder()
+                        .email("system@linkbit.internal")
+                        .password("sys")
+                        .kycStatus(KycStatus.VERIFIED)
+                        .role(ActorType.SYSTEM)
+                        .build()));
 
         LoanOffer offer = loanOfferRepository.save(LoanOffer.builder()
                 .lender(lender)
@@ -106,6 +130,8 @@ public class RepaymentControllerTest {
                 .collateralBtcAmount(new BigDecimal("1.5"))
                 .status(LoanStatus.DISPUTE_OPEN) // Jumpstarting directly to activation call
                 .build());
+        
+        escrowAccountRepository.insertEscrowAccount(activeLoan.getId(), "borrowerBTC", 100000L);
 
         // Kickoff initialization rules (this populates EMI + FIAT_DISBURSEMENT tracking logic)
         disbursementService.activateLoanAdmin(activeLoan.getId());
@@ -147,7 +173,7 @@ public class RepaymentControllerTest {
     }
 
     @Test
-    @WithMockUser(username = "admin@example.com")
+    @WithMockUser(username = "admin@example.com", roles = "ADMIN")
     void adminShouldVerifyAndLinearlySettleEmis() throws Exception {
         // Pre-create pending repayment for 600 INR
         LoanRepayment rep = loanRepaymentRepository().save(LoanRepayment.builder()
@@ -160,7 +186,7 @@ public class RepaymentControllerTest {
 
         mockMvc.perform(post("/admin/repayments/" + rep.getId() + "/verify")
                 .contentType(MediaType.APPLICATION_JSON))
-                .andExpect(status().isAccepted());
+                .andExpect(status().isOk());
 
         // Validate state changes
         Loan loan = loanRepository.findById(activeLoan.getId()).orElseThrow();
@@ -181,7 +207,7 @@ public class RepaymentControllerTest {
     }
 
     @Test
-    @WithMockUser(username = "admin@example.com")
+    @WithMockUser(username = "admin@example.com", roles = "ADMIN")
     void shouldMoveToRepaidWhenFullySettled() throws Exception {
         LoanRepayment rep = loanRepaymentRepository().save(LoanRepayment.builder()
                 .loan(activeLoan)
@@ -192,10 +218,10 @@ public class RepaymentControllerTest {
                 .build());
 
         mockMvc.perform(post("/admin/repayments/" + rep.getId() + "/verify"))
-                .andExpect(status().isAccepted());
+                .andExpect(status().isOk());
 
         Loan loan = loanRepository.findById(activeLoan.getId()).orElseThrow();
-        assert loan.getStatus() == LoanStatus.REPAID;
+        assert loan.getStatus() == LoanStatus.CLOSED;
         assert loan.getTotalOutstanding().compareTo(BigDecimal.ZERO) == 0;
     }
 

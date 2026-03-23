@@ -144,9 +144,11 @@ public class LoanMarketplaceService {
                 .interestRate(offer.getInterestRate())
                 .tenureDays(offer.getTenureDays())
                 .expectedLtvPercent(offer.getExpectedLtvPercent())
-                .principalOutstanding(BigDecimal.ZERO)
-                .interestOutstanding(BigDecimal.ZERO)
                 .totalOutstanding(BigDecimal.ZERO)
+                .repaymentType(com.linkbit.mvp.domain.RepaymentType.BULLET)
+                .emiCount(1)
+                .marginCallLtvPercent(70)
+                .liquidationLtvPercent(85)
                 .status(LoanStatus.NEGOTIATING)
                 .build());
         return savedLoan.getId();
@@ -160,6 +162,7 @@ public class LoanMarketplaceService {
     private OfferResponse mapToOfferResponse(LoanOffer offer) {
         return OfferResponse.builder()
                 .offerId(offer.getId())
+                .lenderId(offer.getLender().getId())
                 .lenderPseudonym(offer.getLender().getPseudonym())
                 .loanAmount(offer.getLoanAmountInr())
                 .interestRate(offer.getInterestRate())

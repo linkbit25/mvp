@@ -111,6 +111,7 @@ public class EscrowControllerTest {
                 .password(passwordEncoder.encode("password"))
                 .phoneNumber("4444444444")
                 .pseudonym("Admin")
+                .role(ActorType.ADMIN)
                 .kycStatus(KycStatus.VERIFIED)
                 .build();
         userRepository.save(admin);

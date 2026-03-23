@@ -87,7 +87,7 @@ public class CollateralReleaseService {
                 .orElseThrow(() -> new UsernameNotFoundException("User not found"));
 
         if (!loan.getBorrower().getId().equals(user.getId()) && !loan.getLender().getId().equals(user.getId())) {
-            throw new RuntimeException("Only participants can view collateral balance");
+            throw new org.springframework.security.access.AccessDeniedException("Only participants can view collateral balance");
         }
 
         return escrowAccountRepository.findByLoanId(loanId)

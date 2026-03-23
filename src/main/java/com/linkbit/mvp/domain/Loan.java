@@ -157,6 +157,14 @@ public class Loan {
     @Column(name = "collateral_released_btc", precision = 24, scale = 8)
     private BigDecimal collateralReleasedBtc;
 
+    @Builder.Default
+    @Column(name = "lender_finalized")
+    private Boolean lenderFinalized = false;
+
+    @Builder.Default
+    @Column(name = "borrower_finalized")
+    private Boolean borrowerFinalized = false;
+
     @OneToMany(mappedBy = "loan", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private List<NegotiationMessage> negotiationMessages;
 }

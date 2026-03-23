@@ -48,6 +48,22 @@ public class NotificationService {
         }
     }
 
+    /**
+     * Emits a notification directly to a specific user.
+     */
+    @Transactional
+    public void createForUser(UUID userId, String title, String message) {
+        try {
+            notificationRepository.save(Notification.builder()
+                    .userId(userId)
+                    .title(title)
+                    .message(message)
+                    .build());
+        } catch (Exception e) {
+            log.error("Failed to create notification for user {}: {}", userId, e.getMessage());
+        }
+    }
+
     @Transactional(readOnly = true)
     public List<NotificationResponse> getNotifications(String email) {
         UUID userId = userRepository.findByEmail(email)

@@ -94,7 +94,7 @@ public class RepaymentService {
         User user = getUserByEmail(email);
 
         if (!loan.getBorrower().getId().equals(user.getId())) {
-            throw new RuntimeException("Unauthorized: Only borrower can submit a repayment");
+            throw new org.springframework.security.access.AccessDeniedException("Unauthorized: Only borrower can submit a repayment");
         }
         if (loan.getStatus() != LoanStatus.ACTIVE) {
             throw new RuntimeException("Loan must be in ACTIVE status to submit repayments");

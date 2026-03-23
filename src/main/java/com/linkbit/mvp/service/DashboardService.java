@@ -164,6 +164,8 @@ public class DashboardService {
                 .currentLtvPercent(loan.getCurrentLtvPercent())
                 .agreementHash(loan.getAgreementHash())
                 .agreementFinalizedAt(loan.getAgreementFinalizedAt())
+                .lenderFinalized(loan.getLenderFinalized())
+                .borrowerFinalized(loan.getBorrowerFinalized())
                 .createdAt(loan.getCreatedAt())
                 .updatedAt(loan.getUpdatedAt())
                 .fiatDisbursedAt(loan.getFiatDisbursedAt())

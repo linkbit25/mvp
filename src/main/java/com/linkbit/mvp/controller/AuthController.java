@@ -45,8 +45,8 @@ public class AuthController {
     }
 
     @PostMapping("/kyc/submit")
-    public ResponseEntity<Void> submitKyc(Authentication authentication) {
-        authService.submitKyc(authentication.getName());
+    public ResponseEntity<Void> submitKyc(Authentication authentication, @Valid @RequestBody KycSubmitRequest request) {
+        authService.submitKyc(authentication.getName(), request);
         return ResponseEntity.ok().build();
     }
 }

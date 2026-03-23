@@ -76,14 +76,14 @@ export const LoanNegotiationPage = () => {
       }
 
       setEditTerms({
-        principal_amount: loan.principalAmount,
-        interest_rate: loan.interestRate,
-        tenure_days: loan.tenureDays,
-        repayment_type: loan.repaymentType,
-        emi_count: loan.emiCount,
-        expected_ltv_percent: loan.expectedLtvPercent,
-        margin_call_ltv_percent: loan.marginCallLtvPercent,
-        liquidation_ltv_percent: loan.liquidationLtvPercent
+        principal_amount: loan.principalAmount || 0,
+        interest_rate: loan.interestRate || 0,
+        tenure_days: loan.tenureDays || 0,
+        repayment_type: loan.repaymentType || 'BULLET',
+        emi_count: loan.emiCount || 1,
+        expected_ltv_percent: loan.expectedLtvPercent || 50,
+        margin_call_ltv_percent: loan.marginCallLtvPercent || 70,
+        liquidation_ltv_percent: loan.liquidationLtvPercent || 85
       });
     }
   }, [loan]);
@@ -136,6 +136,11 @@ export const LoanNegotiationPage = () => {
 
   const isNegotiating = loan.status === 'NEGOTIATING';
   const myRole = loan.role;
+  const isLender = myRole === 'LENDER';
+  const canEdit = isNegotiating && isLender;
+  
+  const hasIAgreed = isLender ? loan.lenderFinalized : loan.borrowerFinalized;
+  const hasOtherAgreed = isLender ? loan.borrowerFinalized : loan.lenderFinalized;
 
   return (
     <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-6 h-[calc(100vh-10rem)]">
@@ -222,7 +227,14 @@ export const LoanNegotiationPage = () => {
             <div className="bg-slate-800 p-2 rounded-lg">
               <Settings2 className="h-5 w-5 text-white" />
             </div>
-            <CardTitle className="text-lg">Loan Terms</CardTitle>
+          </div>
+          <div className="flex gap-2">
+            <Badge variant={loan.lenderFinalized ? 'default' : 'outline'} className={loan.lenderFinalized ? 'bg-green-600' : 'text-slate-400'}>
+              Lender: {loan.lenderFinalized ? 'Agreed' : 'Pending'}
+            </Badge>
+            <Badge variant={loan.borrowerFinalized ? 'default' : 'outline'} className={loan.borrowerFinalized ? 'bg-green-600' : 'text-slate-400'}>
+              Borrower: {loan.borrowerFinalized ? 'Agreed' : 'Pending'}
+            </Badge>
           </div>
         </CardHeader>
 
@@ -234,7 +246,7 @@ export const LoanNegotiationPage = () => {
                 type="number"
                 value={editTerms.principal_amount}
                 onChange={(e) => setEditTerms({ ...editTerms, principal_amount: Number(e.target.value) })}
-                disabled={!isNegotiating}
+                disabled={!canEdit}
                 className={`h-11 font-semibold text-lg border-slate-200 bg-white transition-all duration-500 ${
                   showFlash ? 'ring-2 ring-indigo-500 bg-indigo-50/50' : ''
                 }`}
@@ -249,7 +261,7 @@ export const LoanNegotiationPage = () => {
                   step="0.1"
                   value={editTerms.interest_rate}
                   onChange={(e) => setEditTerms({ ...editTerms, interest_rate: Number(e.target.value) })}
-                  disabled={!isNegotiating}
+                  disabled={!canEdit}
                   className={`h-11 font-semibold transition-all duration-500 ${
                     showFlash ? 'ring-2 ring-indigo-500 bg-indigo-50/50' : ''
                   }`}
@@ -261,7 +273,7 @@ export const LoanNegotiationPage = () => {
                   type="number"
                   value={editTerms.tenure_days}
                   onChange={(e) => setEditTerms({ ...editTerms, tenure_days: Number(e.target.value) })}
-                  disabled={!isNegotiating}
+                  disabled={!canEdit}
                   className={`h-11 font-semibold transition-all duration-500 ${
                     showFlash ? 'ring-2 ring-indigo-500 bg-indigo-50/50' : ''
                   }`}
@@ -291,21 +303,23 @@ export const LoanNegotiationPage = () => {
         <CardFooter className="border-t p-6 bg-slate-50/50 flex flex-col gap-3">
           {isNegotiating ? (
             <>
-              <Button 
-                onClick={() => updateTermsMutation.mutate(editTerms)}
-                disabled={updateTermsMutation.isPending}
-                className="w-full bg-slate-900 border border-slate-800 h-11 text-sm font-bold hover:bg-slate-800 transition-all rounded-xl shadow-lg shadow-slate-200"
-              >
-                Propose New Terms
-              </Button>
+              {isLender && (
+                <Button 
+                  onClick={() => updateTermsMutation.mutate(editTerms)}
+                  disabled={updateTermsMutation.isPending}
+                  className="w-full bg-slate-900 border border-slate-800 h-11 text-sm font-bold hover:bg-slate-800 transition-all rounded-xl shadow-lg shadow-slate-200"
+                >
+                  Propose New Terms
+                </Button>
+              )}
               <div className="grid grid-cols-2 gap-3 w-full">
                 <Button 
                   onClick={() => finalizeMutation.mutate()}
-                  disabled={finalizeMutation.isPending}
-                  className="bg-indigo-600 hover:bg-indigo-700 text-sm font-bold h-11 rounded-xl shadow-lg shadow-indigo-100"
+                  disabled={finalizeMutation.isPending || hasIAgreed}
+                  className={`${hasIAgreed ? 'bg-green-600' : 'bg-indigo-600'} hover:bg-indigo-700 text-sm font-bold h-11 rounded-xl shadow-lg shadow-indigo-100 flex-1 transition-all`}
                 >
                   <CheckCircle2 className="h-4 w-4 mr-2" />
-                  Finalize
+                  {hasIAgreed ? (hasOtherAgreed ? 'Finalized' : 'Agreed') : 'Finalize'}
                 </Button>
                 <Button 
                   variant="outline"

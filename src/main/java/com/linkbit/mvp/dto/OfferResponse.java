@@ -14,6 +14,9 @@ public class OfferResponse {
     @JsonProperty("offer_id")
     private UUID offerId;
 
+    @JsonProperty("lender_id")
+    private UUID lenderId;
+
     @JsonProperty("lender_pseudonym")
     private String lenderPseudonym;
 

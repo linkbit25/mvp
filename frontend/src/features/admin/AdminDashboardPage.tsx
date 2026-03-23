@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useNavigate } from 'react-router-dom';
+import { Navigate, useNavigate } from 'react-router-dom';
 import { format } from 'date-fns';
 import api from '@/services/api';
 import { useAuthStore } from '@/store/authStore';
@@ -17,12 +17,11 @@ export const AdminDashboardPage = () => {
   const navigate = useNavigate();
   const user = useAuthStore((state: any) => state.user);
   const queryClient = useQueryClient();
-  const [activeTab, setActiveTab] = useState<'repayments' | 'deposits' | 'risk'>('repayments');
+  const [activeTab, setActiveTab] = useState<'kyc' | 'repayments' | 'deposits' | 'risk'>('kyc');
 
   // Redirect non-admins
   if (user?.role !== 'ADMIN') {
-    navigate('/dashboard');
-    return null;
+    return <Navigate to="/dashboard" replace />;
   }
 
   return (
@@ -41,6 +40,7 @@ export const AdminDashboardPage = () => {
       {/* Tabs */}
       <div className="bg-slate-100 p-1.5 rounded-2xl flex gap-2 w-fit">
         {([
+          { key: 'kyc', label: 'KYC Approvals', icon: ShieldCheck },
           { key: 'repayments', label: 'Repayments', icon: CreditCard },
           { key: 'deposits', label: 'Collateral', icon: Bitcoin },
           { key: 'risk', label: 'Risk Monitor', icon: AlertTriangle },
@@ -59,10 +59,79 @@ export const AdminDashboardPage = () => {
       </div>
 
       {/* Tab content */}
+      {activeTab === 'kyc' && <KycTab queryClient={queryClient} />}
       {activeTab === 'repayments' && <RepaymentsTab queryClient={queryClient} />}
       {activeTab === 'deposits' && <DepositsTab queryClient={queryClient} />}
       {activeTab === 'risk' && <RiskTab />}
     </div>
+  );
+};
+
+// ─── KYC Tab ─────────────────────────────────────────────────────────────────
+const KycTab = ({ queryClient }: { queryClient: any }) => {
+  const { data: applications = [], isLoading } = useQuery({
+    queryKey: ['admin', 'kyc-applications'],
+    queryFn: async () => (await api.get('/admin/kyc-applications')).data,
+    refetchInterval: 30000,
+  });
+
+  const approveMutation = useMutation({
+    mutationFn: (userId: string) => api.post(`/admin/users/${userId}/kyc/approve`),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['admin', 'kyc-applications'] }),
+  });
+
+  const rejectMutation = useMutation({
+    mutationFn: (userId: string) => api.post(`/admin/users/${userId}/kyc/reject`),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['admin', 'kyc-applications'] }),
+  });
+
+  if (isLoading) return <LoadingSpinner label="Loading KYC applications..." />;
+
+  return (
+    <Card className="border-slate-200 rounded-[2rem] shadow-xl overflow-hidden">
+      <CardHeader className="px-8 py-6 bg-white border-b border-slate-100">
+        <CardTitle className="text-sm font-black uppercase tracking-widest text-slate-800 flex items-center gap-2">
+          <ShieldCheck className="h-4 w-4 text-indigo-500" />
+          Pending KYC Applications ({applications.length})
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="p-0">
+        {applications.length === 0 ? (
+          <EmptyState label="No pending KYC applications" />
+        ) : (
+          <div className="divide-y divide-slate-50">
+            {applications.map((app: any) => (
+              <div key={app.userId} className="flex items-center justify-between px-8 py-5 hover:bg-slate-50/60 transition-all">
+                <div className="space-y-1">
+                  <p className="text-sm font-black text-slate-900">{app.pseudonym}</p>
+                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">{app.email}</p>
+                  <p className="text-[10px] text-slate-500 font-medium">Bank Acc: ********</p>
+                </div>
+                <div className="flex items-center gap-4">
+                  <Button
+                    size="sm"
+                    disabled={approveMutation.isPending || rejectMutation.isPending}
+                    onClick={() => rejectMutation.mutate(app.userId)}
+                    className="bg-red-600 hover:bg-red-700 text-white font-black text-[10px] uppercase tracking-widest rounded-xl h-9 px-5 shadow"
+                  >
+                    Reject
+                  </Button>
+                  <Button
+                    size="sm"
+                    disabled={approveMutation.isPending || rejectMutation.isPending}
+                    onClick={() => approveMutation.mutate(app.userId)}
+                    className="bg-green-600 hover:bg-green-700 text-white font-black text-[10px] uppercase tracking-widest rounded-xl h-9 px-5 shadow"
+                  >
+                    <CheckCircle2 className="h-3.5 w-3.5 mr-1" />
+                    Approve
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 };
 

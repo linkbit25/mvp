@@ -73,7 +73,7 @@ public class AdminRiskControllerTest {
     }
 
     @Test
-    @WithMockUser(username = "admin@example.com")
+    @WithMockUser(username = "admin@example.com", roles = "ADMIN")
     void adminShouldBeAbleToOverrideRiskState() throws Exception {
         SetRiskStateRequest req = new SetRiskStateRequest(LoanStatus.MARGIN_CALL);
 

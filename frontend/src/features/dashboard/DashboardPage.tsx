@@ -15,7 +15,8 @@ import {
   ChevronRight,
   Plus,
   Loader2,
-  RefreshCcw
+  RefreshCcw,
+  ShieldCheck
 } from 'lucide-react';
 import { useAuthStore } from '@/store/authStore';
 
@@ -136,6 +137,26 @@ export const DashboardPage = () => {
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
+      {user?.kycStatus === 'PENDING' && (
+        <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-sm animate-in slide-in-from-top-2 duration-500">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-amber-100 rounded-full shrink-0">
+              <AlertTriangle className="h-5 w-5 text-amber-600" />
+            </div>
+            <div>
+              <h3 className="text-sm font-semibold text-amber-800 tracking-tight">Complete Your KYC</h3>
+              <p className="text-xs text-amber-700 mt-0.5">Identity verification is required before you can participate in the marketplace.</p>
+            </div>
+          </div>
+          <Link to="/kyc" className="w-full sm:w-auto">
+            <Button size="sm" className="w-full bg-amber-600 hover:bg-amber-700 text-white font-medium shadow-sm">
+              <ShieldCheck className="h-4 w-4 mr-2" />
+              Verify Identity
+            </Button>
+          </Link>
+        </div>
+      )}
+
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h1 className="text-3xl font-bold text-slate-900 tracking-tight">Financial Overview</h1>
@@ -148,20 +169,20 @@ export const DashboardPage = () => {
             </div>
           </div>
         </div>
-        {user?.role === 'LENDER' ? (
-          <Link to="/offers/create">
-            <Button className="bg-indigo-600 hover:bg-indigo-700 shadow-sm">
-              <Plus className="h-4 w-4 mr-2" />
-              Create Offer
-            </Button>
-          </Link>
-        ) : (
-          <Link to="/marketplace">
-            <Button className="bg-indigo-600 hover:bg-indigo-700 shadow-sm">
-              <Plus className="h-4 w-4 mr-2" />
-              New Loan Request
-            </Button>
-          </Link>
+        {user?.role !== 'ADMIN' && (
+          <div className="flex gap-3">
+            <Link to="/marketplace">
+              <Button className="bg-white text-indigo-600 hover:bg-slate-50 shadow-sm border border-indigo-200">
+                Find Offers
+              </Button>
+            </Link>
+            <Link to="/offers/create">
+              <Button className="bg-indigo-600 hover:bg-indigo-700 shadow-sm text-white">
+                <Plus className="h-4 w-4 mr-2" />
+                Create Offer
+              </Button>
+            </Link>
+          </div>
         )}
       </div>
 

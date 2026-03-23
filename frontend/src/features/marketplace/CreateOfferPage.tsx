@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useAuthStore } from '@/store/authStore';
 import api from '@/services/api';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -9,6 +10,7 @@ import { Loader2 } from 'lucide-react';
 
 export const CreateOfferPage = () => {
   const navigate = useNavigate();
+  const { user } = useAuthStore();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [formData, setFormData] = useState({
@@ -24,10 +26,24 @@ export const CreateOfferPage = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
     setLoading(true);
     setError('');
     
     try {
+      // 1. Force fetch the latest KYC status before validating, to ensure we don't block them with a stale cache
+      const meRes = await api.get('/auth/me');
+      useAuthStore.getState().updateKycStatus(meRes.data.kycStatus);
+      
+      if (meRes.data.kycStatus !== 'VERIFIED') {
+        setError(`KYC Not Verified (Current Status: ${meRes.data.kycStatus}). Redirecting to verification page...`);
+        setTimeout(() => {
+          navigate('/kyc');
+        }, 2000);
+        setLoading(false);
+        return;
+      }
+    
       await api.post('/offers', {
         loan_amount_inr: Number(formData.loanAmountInr),
         interest_rate: Number(formData.interestRate),

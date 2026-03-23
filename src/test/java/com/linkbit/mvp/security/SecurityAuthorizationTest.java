@@ -145,18 +145,18 @@ public class SecurityAuthorizationTest {
     void thirdPartyShouldNotViewCollateralBalance() throws Exception {
         mockMvc.perform(get("/loans/" + loan.getId() + "/collateral"))
                 .andDo(print())
-                .andExpect(status().isInternalServerError());
+                .andExpect(status().isForbidden());
     }
 
     @Test
     @WithMockUser(username = "test-lender@linkbit.io")
     void lenderShouldNotAccessBorrowerRepaymentSubmission() throws Exception {
         // Only borrower can submit repayment
-        mockMvc.perform(post("/loans/" + loan.getId() + "/repayment")
+        mockMvc.perform(post("/loans/" + loan.getId() + "/repay")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"amountInr\": 1000, \"transactionReference\": \"ref\"}"))
+                .content("{\"amount\": 1000, \"transaction_reference\": \"ref\", \"proof_image_url\": \"url\"}"))
                 .andDo(print())
-                .andExpect(status().isInternalServerError());
+                .andExpect(status().isForbidden());
     }
 
     @Test
@@ -167,6 +167,6 @@ public class SecurityAuthorizationTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"transaction_reference\": \"ref\", \"proof_image_url\": \"url\"}"))
                 .andDo(print())
-                .andExpect(status().isInternalServerError()); // Back to expecting 500 now that it's valid
+                .andExpect(status().isForbidden()); // Back to expecting 500 now that it's valid
     }
 }

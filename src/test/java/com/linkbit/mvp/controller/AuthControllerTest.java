@@ -53,6 +53,7 @@ class AuthControllerTest {
         mockMvc.perform(post("/auth/register")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(registerRequest("test@example.com"))))
+                .andDo(org.springframework.test.web.servlet.result.MockMvcResultHandlers.print())
                 .andExpect(status().isCreated());
 
         var savedUser = userRepository.findByEmail("test@example.com").orElseThrow();
@@ -155,8 +156,10 @@ class AuthControllerTest {
 
     private RegisterRequest registerRequest(String email) {
         RegisterRequest request = new RegisterRequest();
+        request.setName("Test User");
         request.setEmail(email);
         request.setPassword("password123");
+        request.setDob("1990-01-01");
         request.setPhoneNumber("1234567890");
         request.setPseudonym("TestUser");
         request.setBankAccountNumber("123456789012");

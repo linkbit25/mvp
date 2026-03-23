@@ -56,6 +56,11 @@ public class NegotiationService {
         loan.setExpectedLtvPercent(request.getExpectedLtvPercent());
         loan.setMarginCallLtvPercent(request.getMarginCallLtvPercent());
         loan.setLiquidationLtvPercent(request.getLiquidationLtvPercent());
+        
+        // Reset finalization flags on any term update
+        loan.setLenderFinalized(false);
+        loan.setBorrowerFinalized(false);
+        
         loanRepository.save(loan);
 
         chatService.sendSystemMessage(loanId, "SYSTEM: Terms updated by " + lender.getPseudonym());
@@ -87,18 +92,30 @@ public class NegotiationService {
         }
 
         calculateRepayment(loan);
-        LocalDateTime finalizedAt = LocalDateTime.now();
-        loan.setAgreementFinalizedAt(finalizedAt);
-        loan.setAgreementHash(generateHash(buildAgreementData(loan, finalizedAt)));
         
-        ActorType actorType = loan.getLender().getId().equals(lender.getId()) ? ActorType.LENDER : ActorType.BORROWER;
-        stateMachineService.transition(loan, LoanAction.FINALIZE_CONTRACT, actorType);
+        if (loan.getLender().getId().equals(lender.getId())) {
+            loan.setLenderFinalized(true);
+        } else {
+            loan.setBorrowerFinalized(true);
+        }
 
-        offer.setStatus(LoanOfferStatus.CLOSED);
+        if (loan.getLenderFinalized() && loan.getBorrowerFinalized()) {
+            LocalDateTime finalizedAt = LocalDateTime.now();
+            loan.setAgreementFinalizedAt(finalizedAt);
+            loan.setAgreementHash(generateHash(buildAgreementData(loan, finalizedAt)));
+            
+            ActorType actorType = loan.getLender().getId().equals(lender.getId()) ? ActorType.LENDER : ActorType.BORROWER;
+            stateMachineService.transition(loan, LoanAction.FINALIZE_CONTRACT, actorType);
+            chatService.sendSystemMessage(loanId, "SYSTEM: Terms agreed by both parties. Awaiting signatures.");
+        } else {
+            String roleName = loan.getLender().getId().equals(lender.getId()) ? "Lender" : "Borrower";
+            String waiterName = loan.getLender().getId().equals(lender.getId()) ? "Borrower" : "Lender";
+            chatService.sendSystemMessage(loanId, "SYSTEM: " + roleName + " has agreed to terms. Waiting for " + waiterName + " to finalize.");
+        }
+
+        offer.setStatus(loan.getStatus() == LoanStatus.NEGOTIATING ? LoanOfferStatus.OPEN : LoanOfferStatus.CLOSED);
         loanOfferRepository.save(offer);
         loanRepository.save(loan);
-
-        chatService.sendSystemMessage(loanId, "SYSTEM: Contract finalized. Awaiting signatures.");
     }
 
     @Transactional

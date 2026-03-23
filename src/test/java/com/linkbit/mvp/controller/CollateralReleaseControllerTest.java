@@ -90,6 +90,7 @@ class CollateralReleaseControllerTest {
                 .email("admin@example.com")
                 .password(passwordEncoder.encode("password"))
                 .kycStatus(KycStatus.VERIFIED)
+                .role(ActorType.ADMIN)
                 .pseudonym("AdminP")
                 .build();
         userRepository.save(admin);
@@ -165,7 +166,7 @@ class CollateralReleaseControllerTest {
         mockMvc.perform(post("/admin/loans/" + loan.getId() + "/release-collateral")
                         .header("Authorization", adminToken)
                         .contentType(MediaType.APPLICATION_JSON))
-                .andExpect(status().isInternalServerError());
+                .andExpect(status().isConflict());
     }
 
     @Test
@@ -174,8 +175,8 @@ class CollateralReleaseControllerTest {
                         .header("Authorization", borrowerToken)
                         .contentType(MediaType.APPLICATION_JSON))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.loan_id").value(loan.getId().toString()))
-                .andExpect(jsonPath("$.collateral_btc").value(0.025))
+                .andExpect(jsonPath("$.loanId").value(loan.getId().toString()))
+                .andExpect(jsonPath("$.collateralBtc").value(0.025))
                 .andExpect(jsonPath("$.status").value("LOCKED"));
 
         // After release

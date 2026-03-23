@@ -7,6 +7,9 @@ import lombok.Data;
 @Data
 public class RegisterRequest {
 
+    @NotBlank(message = "Name is required")
+    private String name;
+
     @NotBlank(message = "Email is required")
     @Email(message = "Invalid email format")
     private String email;
@@ -14,18 +17,16 @@ public class RegisterRequest {
     @NotBlank(message = "Password is required")
     private String password;
 
-    @NotBlank(message = "Phone number is required")
+    @NotBlank(message = "Date of birth is required")
+    private String dob;
+
     private String phoneNumber;
 
-    @NotBlank(message = "Pseudonym is required")
     private String pseudonym;
 
-    @NotBlank(message = "Bank account number is required")
     private String bankAccountNumber;
 
-    @NotBlank(message = "IFSC code is required")
     private String ifsc;
 
-    @NotBlank(message = "UPI ID is required")
     private String upiId;
 }

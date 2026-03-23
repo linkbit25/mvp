@@ -31,9 +31,12 @@ export const useAuthStore = create<AuthState>()(
         set({ user: null, token: null });
       },
       updateKycStatus: (status) => {
-        set((state) => ({
-          user: state.user ? { ...state.user, kycStatus: status } : null,
-        }));
+        set((state) => {
+          if (state.user?.kycStatus === status) return state;
+          return {
+            user: state.user ? { ...state.user, kycStatus: status } : null,
+          };
+        });
       },
     }),
     {

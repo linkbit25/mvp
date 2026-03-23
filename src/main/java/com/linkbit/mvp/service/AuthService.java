@@ -35,16 +35,17 @@ public class AuthService {
     @Transactional
     public void register(RegisterRequest request) {
         if (userRepository.existsByEmail(request.getEmail())) {
-            throw new RuntimeException("Email already exists");
+            throw new IllegalStateException("Email already exists");
         }
 
         User user = User.builder()
                 .email(request.getEmail())
                 .password(passwordEncoder.encode(request.getPassword()))
                 .phoneNumber(request.getPhoneNumber())
-                .pseudonym(request.getPseudonym())
-                .role(com.linkbit.mvp.domain.ActorType.BORROWER)
+                .pseudonym(request.getName())
+                .role(com.linkbit.mvp.domain.ActorType.USER)
                 .isEmailVerified(false)
+                .kycStatus(KycStatus.PENDING)
                 .build();
 
         UserKycDetails kycDetails = UserKycDetails.builder()
@@ -157,11 +158,20 @@ public class AuthService {
     }
 
     @Transactional
-    public void submitKyc(String email) {
+    public void submitKyc(String email, KycSubmitRequest request) {
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new UsernameNotFoundException("User not found"));
         
-        user.setKycStatus(KycStatus.VERIFIED);
+        UserKycDetails details = user.getKycDetails();
+        if (details == null) {
+            details = UserKycDetails.builder().user(user).build();
+        }
+        details.setBankAccountNumber(request.getBankAccountNumber());
+        details.setIfsc(request.getIfsc());
+        details.setUpiId(request.getUpiId());
+        user.setKycDetails(details);
+        
+        user.setKycStatus(KycStatus.SUBMITTED);
         userRepository.save(user);
     }
 }

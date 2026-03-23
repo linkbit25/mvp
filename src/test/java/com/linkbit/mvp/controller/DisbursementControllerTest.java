@@ -122,7 +122,7 @@ public class DisbursementControllerTest {
         // Only lender can view these details
         mockMvc.perform(get("/loans/" + lockedLoan.getId() + "/payment-details")
                 .contentType(MediaType.APPLICATION_JSON))
-                .andExpect(status().isInternalServerError());
+                .andExpect(status().isForbidden());
     }
 
     @Test
@@ -173,7 +173,7 @@ public class DisbursementControllerTest {
     }
 
     @Test
-    @WithMockUser(username = "admin@example.com")
+    @WithMockUser(username = "admin@example.com", roles = "ADMIN")
     void shouldActivateLoanThroughAdminArbitration() throws Exception {
         lockedLoan.setStatus(LoanStatus.DISPUTE_OPEN);
         loanRepository.save(lockedLoan);
@@ -187,7 +187,7 @@ public class DisbursementControllerTest {
     }
 
     @Test
-    @WithMockUser(username = "admin@example.com")
+    @WithMockUser(username = "admin@example.com", roles = "ADMIN")
     void shouldRefundCollateralThroughAdminArbitration() throws Exception {
         lockedLoan.setStatus(LoanStatus.DISPUTE_OPEN);
         loanRepository.save(lockedLoan);

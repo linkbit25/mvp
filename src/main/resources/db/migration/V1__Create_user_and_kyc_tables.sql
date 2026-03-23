@@ -4,7 +4,7 @@ CREATE TABLE users (
     password_hash VARCHAR(255) NOT NULL,
     phone_number VARCHAR(255),
     pseudonym VARCHAR(255),
-    kyc_status VARCHAR(255) NOT NULL CHECK (kyc_status IN ('PENDING', 'VERIFIED', 'REJECTED')),
+    kyc_status VARCHAR(255) NOT NULL CHECK (kyc_status IN ('PENDING', 'SUBMITTED', 'VERIFIED', 'REJECTED')),
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );

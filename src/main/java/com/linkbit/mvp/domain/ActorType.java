@@ -4,5 +4,6 @@ public enum ActorType {
     BORROWER,
     LENDER,
     ADMIN,
-    SYSTEM
+    SYSTEM,
+    USER
 }

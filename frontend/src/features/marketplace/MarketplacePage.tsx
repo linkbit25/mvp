@@ -115,7 +115,9 @@ export const MarketplacePage = () => {
 
       {offers && offers.length > 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {offers.map((offer) => (
+          {offers
+            .filter(offer => offer.lender_id !== user?.userId)
+            .map((offer) => (
             <Card key={offer.offer_id} className="hover:shadow-lg transition-all duration-300 border-slate-200 group flex flex-col">
               <CardHeader className="pb-4">
                 <div className="flex justify-between items-start">

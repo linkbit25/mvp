@@ -29,7 +29,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
 @Transactional
-@WithMockUser(username = "admin")
+@WithMockUser(username = "admin", roles = "ADMIN")
 class LiquidationControllerTest {
 
     @Autowired
@@ -49,6 +49,9 @@ class LiquidationControllerTest {
 
     @Autowired
     private LoanLedgerRepository loanLedgerRepository;
+
+    @Autowired
+    private com.linkbit.mvp.repository.EscrowAccountRepository escrowAccountRepository;
 
     @MockBean
     private BtcPriceService btcPriceService;
@@ -80,6 +83,22 @@ class LiquidationControllerTest {
                 .build();
         userRepository.save(borrower);
 
+        userRepository.findByEmail("admin").orElseGet(() ->
+                userRepository.save(User.builder()
+                        .email("admin")
+                        .password("password")
+                        .kycStatus(KycStatus.VERIFIED)
+                        .role(ActorType.ADMIN)
+                        .build()));
+
+        userRepository.findByEmail("system@linkbit.internal").orElseGet(() ->
+                userRepository.save(User.builder()
+                        .email("system@linkbit.internal")
+                        .password("sys")
+                        .kycStatus(KycStatus.VERIFIED)
+                        .role(ActorType.SYSTEM)
+                        .build()));
+
         offer = LoanOffer.builder()
                 .lender(lender)
                 .loanAmountInr(new BigDecimal("100000.00"))
@@ -103,6 +122,8 @@ class LiquidationControllerTest {
                 .liquidationLtvPercent(90)
                 .build();
         loanRepository.save(loan);
+        
+        escrowAccountRepository.insertEscrowAccount(loan.getId(), "borrowerBTC", 2000000L);
     }
 
     @Test
@@ -113,7 +134,7 @@ class LiquidationControllerTest {
         // LTV = 100% (High enough for liquidation)
         when(btcPriceService.getCurrentBtcPrice()).thenReturn(new BigDecimal("5000000.00"));
 
-        mockMvc.perform(post("/admin/loans/{loan_id}/execute-liquidation", loan.getId())
+        mockMvc.perform(post("/admin/liquidations/{loan_id}/execute-liquidation", loan.getId())
                 .contentType(MediaType.APPLICATION_JSON))
                 .andExpect(status().isOk());
 
@@ -145,7 +166,7 @@ class LiquidationControllerTest {
         // LTV = 50% (Below liquidation threshold of 90%)
         when(btcPriceService.getCurrentBtcPrice()).thenReturn(new BigDecimal("10000000.00"));
 
-        mockMvc.perform(post("/admin/loans/{loan_id}/execute-liquidation", loan.getId())
+        mockMvc.perform(post("/admin/liquidations/{loan_id}/execute-liquidation", loan.getId())
                 .contentType(MediaType.APPLICATION_JSON))
                 .andExpect(status().isOk());
 
@@ -179,7 +200,7 @@ class LiquidationControllerTest {
         // 2. Penalty = 104,000 - 100,000 = 4,000 (remaining collateral is less than penalty)
         // 3. Borrower = 0
         
-        mockMvc.perform(post("/admin/loans/{loan_id}/execute-liquidation", loan.getId())
+        mockMvc.perform(post("/admin/liquidations/{loan_id}/execute-liquidation", loan.getId())
                 .contentType(MediaType.APPLICATION_JSON))
                 .andExpect(status().isOk());
 

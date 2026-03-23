@@ -15,6 +15,7 @@ import { DisbursementPage } from '@/features/loans/DisbursementPage';
 import { RepaymentPage } from '@/features/loans/RepaymentPage';
 import { LoanClosurePage } from '@/features/loans/LoanClosurePage';
 import { AdminDashboardPage } from '@/features/admin/AdminDashboardPage';
+import { ProfilePage } from '@/features/profile/ProfilePage';
 
 const Marketplace = () => <MarketplacePage />;
 const CreateOffer = () => <CreateOfferPage />;
@@ -28,6 +29,7 @@ const Disbursement = () => <DisbursementPage />;
 const Repayment = () => <RepaymentPage />;
 const LoanClosure = () => <LoanClosurePage />;
 const AdminDashboard = () => <AdminDashboardPage />;
+const Profile = () => <ProfilePage />;
 
 export const router = createBrowserRouter([
   {
@@ -64,6 +66,10 @@ export const router = createBrowserRouter([
           {
             path: 'kyc',
             element: <Kyc />,
+          },
+          {
+            path: 'profile',
+            element: <Profile />,
           },
           {
             path: 'loans/:id',

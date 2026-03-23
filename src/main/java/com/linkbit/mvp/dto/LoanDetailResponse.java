@@ -46,6 +46,8 @@ public class LoanDetailResponse {
     private LocalDateTime collateralReleasedAt;
     private String escrowAddress;
     private Long escrowBalanceSats;
+    private Boolean lenderFinalized;
+    private Boolean borrowerFinalized;
     private PendingFeeResponse pendingFee;
     private List<PendingRepaymentResponse> pendingRepayments;
 }

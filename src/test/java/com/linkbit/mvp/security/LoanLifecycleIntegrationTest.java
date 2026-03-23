@@ -60,8 +60,10 @@ public class LoanLifecycleIntegrationTest {
 
         // Register borrower
         RegisterRequest br = new RegisterRequest();
+        br.setName("Borrower Name");
         br.setEmail(borrowerEmail);
         br.setPassword("pass");
+        br.setDob("1990-01-01");
         br.setPseudonym("Borrower");
         br.setPhoneNumber("1234567890");
         br.setBankAccountNumber("123456789");
@@ -71,8 +73,10 @@ public class LoanLifecycleIntegrationTest {
 
         // Register lender
         RegisterRequest lr = new RegisterRequest();
+        lr.setName("Lender Name");
         lr.setEmail(lenderEmail);
         lr.setPassword("pass");
+        lr.setDob("1990-01-01");
         lr.setPseudonym("Lender");
         lr.setPhoneNumber("0987654321");
         lr.setBankAccountNumber("987654321");
@@ -87,6 +91,19 @@ public class LoanLifecycleIntegrationTest {
         User lender = userRepository.findByEmail(lenderEmail).get();
         lender.setKycStatus(KycStatus.VERIFIED);
         userRepository.save(lender);
+
+        userRepository.save(com.linkbit.mvp.domain.User.builder()
+                .email("system@linkbit.internal")
+                .password("sys")
+                .role(ActorType.SYSTEM)
+                .kycStatus(KycStatus.VERIFIED)
+                .build());
+        userRepository.save(com.linkbit.mvp.domain.User.builder()
+                .email("admin@linkbit.com")
+                .password("admin")
+                .role(ActorType.ADMIN)
+                .kycStatus(KycStatus.VERIFIED)
+                .build());
     }
 
     @Test
@@ -159,10 +176,8 @@ public class LoanLifecycleIntegrationTest {
         assertFalse(repayments.isEmpty());
         UUID repaymentId = repayments.get(0).getId();
         repaymentService.verifyRepayment(repaymentId);
-        assertEquals(LoanStatus.REPAID, getLoan(loanId).getStatus());
-
-        // 10. Close (Borrower releases collateral)
-        collateralReleaseService.releaseCollateral(loanId, lenderEmail); 
+        
+        // Due to automated collateral release, state goes immediately from REPAID -> CLOSED
         assertEquals(LoanStatus.CLOSED, getLoan(loanId).getStatus());
 
         // Final Verify: Audit logs should exist for all major transitions
@@ -213,7 +228,7 @@ public class LoanLifecycleIntegrationTest {
         LoanRepayment repayment = repaymentRepository.findByLoanIdOrderByCreatedAtDesc(loanId).get(0);
         
         repaymentService.verifyRepayment(repayment.getId());
-        assertEquals(LoanStatus.REPAID, getLoan(loanId).getStatus());
+        assertEquals(LoanStatus.CLOSED, getLoan(loanId).getStatus());
         
         // Retry verification
         assertThrows(RuntimeException.class, () -> repaymentService.verifyRepayment(repayment.getId()));

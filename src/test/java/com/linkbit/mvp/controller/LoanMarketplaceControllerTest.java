@@ -127,7 +127,7 @@ class LoanMarketplaceControllerTest {
                 .header("Authorization", token)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(request)))
-                .andExpect(status().isInternalServerError()); // Or whatever exception handler returns for RuntimeException
+                .andExpect(status().isForbidden()); // User without KYC cannot access
     }
 
     @Test

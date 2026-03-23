@@ -17,6 +17,7 @@ import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
@@ -186,6 +187,8 @@ public class DisbursementService {
             escrowAccountRepository.save(escrow);
         }
 
+        // Clear any nominal outstanding balance to satisfy state machine invariant for CLOSED
+        loan.setTotalOutstanding(BigDecimal.ZERO);
         stateMachineService.transition(loan, LoanAction.RELEASE_COLLATERAL, ActorType.SYSTEM);
         loanRepository.save(loan);
 

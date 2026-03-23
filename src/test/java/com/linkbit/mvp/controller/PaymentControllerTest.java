@@ -93,6 +93,7 @@ public class PaymentControllerTest {
                 .password(passwordEncoder.encode("password"))
                 .phoneNumber("9999999999")
                 .pseudonym("AdminUser")
+                .role(ActorType.ADMIN)
                 .kycStatus(KycStatus.VERIFIED)
                 .build();
         userRepository.save(admin);

@@ -155,19 +155,17 @@ export const RegisterPage = () => {
             <div className="space-y-2 flex flex-col">
               <Label htmlFor="dob">Date of Birth</Label>
               <Popover>
-                <PopoverTrigger>
-                  <Button
-                    type="button"
-                    variant={"outline"}
-                    className={cn(
-                      "w-full justify-start text-left font-normal h-10 border-slate-200",
-                      !dob && "text-muted-foreground",
-                      errors.dob && "border-red-500"
-                    )}
-                  >
-                    <CalendarIcon className="mr-2 h-4 w-4" />
-                    {dob ? format(dob, "PPP") : <span>Pick a date</span>}
-                  </Button>
+                <PopoverTrigger
+                  type="button"
+                  className={cn(
+                    buttonVariants({ variant: "outline" }),
+                    "w-full justify-start text-left font-normal h-10 border-slate-200",
+                    !dob && "text-muted-foreground",
+                    errors.dob && "border-red-500"
+                  )}
+                >
+                  <CalendarIcon className="mr-2 h-4 w-4" />
+                  {dob ? format(dob, "PPP") : <span>Pick a date</span>}
                 </PopoverTrigger>
                 <PopoverContent className="w-auto p-0" align="start">
                   <Calendar

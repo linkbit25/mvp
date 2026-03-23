@@ -36,14 +36,17 @@ public class User implements UserDetails {
 
     private String pseudonym;
 
+    @Builder.Default
     @Enumerated(EnumType.STRING)
     @Column(name = "role", nullable = false)
-    private ActorType role = ActorType.BORROWER; 
+    private ActorType role = ActorType.USER; 
 
+    @Builder.Default
     @Enumerated(EnumType.STRING)
     @Column(name = "kyc_status")
     private KycStatus kycStatus = KycStatus.PENDING;
 
+    @Builder.Default
     @Column(name = "is_email_verified")
     private boolean isEmailVerified = false;
 
