@@ -17,7 +17,7 @@ export const AdminDashboardPage = () => {
   const navigate = useNavigate();
   const user = useAuthStore((state: any) => state.user);
   const queryClient = useQueryClient();
-  const [activeTab, setActiveTab] = useState<'kyc' | 'repayments' | 'deposits' | 'risk'>('kyc');
+  const [activeTab, setActiveTab] = useState<'kyc' | 'repayments' | 'fees' | 'deposits' | 'risk'>('kyc');
 
   // Redirect non-admins
   if (user?.role !== 'ADMIN') {
@@ -42,6 +42,7 @@ export const AdminDashboardPage = () => {
         {([
           { key: 'kyc', label: 'KYC Approvals', icon: ShieldCheck },
           { key: 'repayments', label: 'Repayments', icon: CreditCard },
+          { key: 'fees', label: 'Platform Fees', icon: ShieldCheck },
           { key: 'deposits', label: 'Collateral', icon: Bitcoin },
           { key: 'risk', label: 'Risk Monitor', icon: AlertTriangle },
         ] as const).map(({ key, label, icon: Icon }) => (
@@ -61,6 +62,7 @@ export const AdminDashboardPage = () => {
       {/* Tab content */}
       {activeTab === 'kyc' && <KycTab queryClient={queryClient} />}
       {activeTab === 'repayments' && <RepaymentsTab queryClient={queryClient} />}
+      {activeTab === 'fees' && <FeesTab queryClient={queryClient} />}
       {activeTab === 'deposits' && <DepositsTab queryClient={queryClient} />}
       {activeTab === 'risk' && <RiskTab />}
     </div>
@@ -103,9 +105,18 @@ const KycTab = ({ queryClient }: { queryClient: any }) => {
             {applications.map((app: any) => (
               <div key={app.userId} className="flex items-center justify-between px-8 py-5 hover:bg-slate-50/60 transition-all">
                 <div className="space-y-1">
-                  <p className="text-sm font-black text-slate-900">{app.pseudonym}</p>
+                  <p className="text-sm font-black text-slate-900">
+                    {app.pseudonym || 'No pseudonym'} 
+                    {app.fullLegalName && app.fullLegalName !== app.pseudonym && (
+                      <span className="text-slate-400 font-medium ml-2">({app.fullLegalName})</span>
+                    )}
+                  </p>
                   <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">{app.email}</p>
-                  <p className="text-[10px] text-slate-500 font-medium">Bank Acc: ********</p>
+                  <div className="flex flex-col gap-0.5 pt-1">
+                    <p className="text-[10px] text-slate-500 font-medium">Bank Acc: {app.bankDetails?.bankAccountNumber || 'N/A'}</p>
+                    <p className="text-[10px] text-slate-500 font-medium">IFSC: {app.bankDetails?.ifsc || 'N/A'}</p>
+                    <p className="text-[10px] text-slate-500 font-medium font-mono text-indigo-600 font-bold">UPI: {app.bankDetails?.upiId || 'N/A'}</p>
+                  </div>
                 </div>
                 <div className="flex items-center gap-4">
                   <Button
@@ -185,6 +196,68 @@ const RepaymentsTab = ({ queryClient }: { queryClient: any }) => {
                   >
                     <CheckCircle2 className="h-3.5 w-3.5 mr-1" />
                     Verify
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+};
+
+// ─── Fees Tab ─────────────────────────────────────────────────────────────
+const FeesTab = ({ queryClient }: { queryClient: any }) => {
+  const { data: fees = [], isLoading } = useQuery({
+    queryKey: ['admin', 'pending-fees'],
+    queryFn: async () => (await api.get('/admin/fees/pending')).data,
+    refetchInterval: 30000,
+  });
+
+  const verifyMutation = useMutation({
+    mutationFn: (feeId: string) => api.post(`/admin/fees/${feeId}/verify`),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['admin', 'pending-fees'] }),
+  });
+
+  if (isLoading) return <LoadingSpinner label="Loading platform fees..." />;
+
+  return (
+    <Card className="border-slate-200 rounded-[2rem] shadow-xl overflow-hidden">
+      <CardHeader className="px-8 py-6 bg-white border-b border-slate-100">
+        <CardTitle className="text-sm font-black uppercase tracking-widest text-slate-800 flex items-center gap-2">
+          <ShieldCheck className="h-4 w-4 text-indigo-500" />
+          Pending Platform Fees ({fees.length})
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="p-0">
+        {fees.length === 0 ? (
+          <EmptyState label="No pending platform fees" />
+        ) : (
+          <div className="divide-y divide-slate-50">
+            {fees.map((f: any) => (
+              <div key={f.feeId} className="flex items-center justify-between px-8 py-5 hover:bg-slate-50/60 transition-all">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <p className="text-sm font-black text-slate-900">₹{f.amountInr?.toLocaleString()}</p>
+                    <Badge className={`text-[8px] font-black uppercase rounded-lg px-2 ${
+                      f.payerRole === 'BORROWER' ? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700'
+                    }`}>
+                      {f.payerRole}
+                    </Badge>
+                  </div>
+                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Fee ID: {f.feeId?.slice(0, 8)}...</p>
+                  <p className="text-[10px] text-slate-300 font-medium">{f.createdAt ? format(new Date(f.createdAt), 'MMM dd, yyyy HH:mm') : '—'}</p>
+                </div>
+                <div className="flex items-center gap-4">
+                  <Button
+                    size="sm"
+                    disabled={verifyMutation.isPending}
+                    onClick={() => verifyMutation.mutate(f.feeId)}
+                    className="bg-green-600 hover:bg-green-700 text-white font-black text-[10px] uppercase tracking-widest rounded-xl h-9 px-5 shadow"
+                  >
+                    <CheckCircle2 className="h-3.5 w-3.5 mr-1" />
+                    Verify Payment
                   </Button>
                 </div>
               </div>

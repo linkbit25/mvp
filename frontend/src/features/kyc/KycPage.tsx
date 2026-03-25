@@ -16,6 +16,7 @@ export const KycPage = () => {
   const [error, setError] = useState<string | null>(null);
 
   const [formData, setFormData] = useState({
+    fullLegalName: '',
     bankAccountNumber: '',
     ifsc: '',
     upiId: ''
@@ -104,6 +105,17 @@ export const KycPage = () => {
           
           <form onSubmit={handleStartVerification} className="space-y-6">
             <div className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="fullLegalName">Full Legal Name (as per Bank/ID)</Label>
+                <Input
+                  id="fullLegalName"
+                  name="fullLegalName"
+                  required
+                  placeholder="e.g. John Doe"
+                  value={formData.fullLegalName}
+                  onChange={handleChange}
+                />
+              </div>
               <div className="space-y-2">
                 <Label htmlFor="bankAccountNumber">Bank Account Number</Label>
                 <Input

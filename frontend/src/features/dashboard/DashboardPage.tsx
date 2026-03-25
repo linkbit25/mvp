@@ -51,20 +51,7 @@ const getStatusVariant = (status: string): BadgeProps['variant'] => {
   }
 };
 
-const getActionLabel = (status: string): string => {
-  switch (status) {
-    case 'NEGOTIATING': return 'Continue';
-    case 'AWAITING_SIGNATURES': return 'Sign';
-    case 'AWAITING_FEE': return 'Pay Fee';
-    case 'AWAITING_COLLATERAL': return 'Deposit';
-    case 'ACTIVE': return 'Repay';
-    case 'REPAID': return 'View';
-    case 'CLOSED': return 'View';
-    case 'MARGIN_CALL': return 'Take Action';
-    case 'LIQUIDATION_ELIGIBLE': return 'Take Action';
-    default: return 'View';
-  }
-};
+import { getLoanRoute, getLoanStatusLabel, getActionLabel } from '@/features/loans/loanRoutes';
 
 export const DashboardPage = () => {
   const navigate = useNavigate();
@@ -230,7 +217,7 @@ export const DashboardPage = () => {
                   className={`border-slate-200 hover:border-indigo-300 transition-all duration-200 group cursor-pointer overflow-hidden ${
                     isAtRisk ? 'border-red-300 shadow-[0_0_15px_rgba(239,68,68,0.15)] ring-1 ring-red-100' : ''
                   }`}
-                  onClick={() => navigate(`/loans/${loan.loanId}`)}
+                  onClick={() => navigate(getLoanRoute(loan.loanId, loan.status))}
                 >
                   <CardContent className="p-0">
                     <div className="flex flex-col md:flex-row items-center justify-between p-4 sm:p-6 gap-4">

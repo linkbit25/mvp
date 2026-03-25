@@ -35,6 +35,10 @@ public class PlatformFee {
     private String paymentGatewayRef;
 
     @Enumerated(EnumType.STRING)
+    @Column(name = "payer_role", nullable = false)
+    private ActorType payerRole;
+
+    @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false)
     private PlatformFeeStatus status;
 

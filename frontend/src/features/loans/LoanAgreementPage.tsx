@@ -17,6 +17,8 @@ import {
   ShieldAlert
 } from 'lucide-react';
 
+import { getLoanRoute } from './loanRoutes';
+
 export const LoanAgreementPage = () => {
   const { id: loanId } = useParams();
   const navigate = useNavigate();
@@ -47,13 +49,13 @@ export const LoanAgreementPage = () => {
   const isFullySigned = !!agreement?.lenderSignature && !!agreement?.borrowerSignature;
 
   useEffect(() => {
-    if (isFullySigned) {
+    if (isFullySigned && loan) {
       const timer = setTimeout(() => {
-        navigate(`/loans/${loanId}/fee`);
+        navigate(getLoanRoute(loanId!, loan.status));
       }, 3000); // 3-second delay to show completion
       return () => clearTimeout(timer);
     }
-  }, [isFullySigned, navigate, loanId]);
+  }, [isFullySigned, navigate, loanId, loan]);
 
   const signMutation = useMutation({
     mutationFn: () => {
@@ -136,6 +138,14 @@ export const LoanAgreementPage = () => {
               <div className="space-y-1">
                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Expected LTV</p>
                 <p className="text-lg font-black text-slate-900">{loan.expectedLtvPercent}%</p>
+              </div>
+              <div className="space-y-1">
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">EMI Amount</p>
+                <p className="text-lg font-black text-indigo-600">₹{loan.emiAmount?.toLocaleString() || 0}</p>
+              </div>
+              <div className="space-y-1">
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Total Repayment</p>
+                <p className="text-lg font-black text-slate-900">₹{loan.totalRepaymentAmount?.toLocaleString() || 0}</p>
               </div>
             </div>
 

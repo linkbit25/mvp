@@ -6,13 +6,13 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { 
+import {
   IndianRupee,
-  CreditCard, 
-  Smartphone, 
-  CheckCircle2, 
-  AlertCircle, 
-  Clock, 
+  CreditCard,
+  Smartphone,
+  CheckCircle2,
+  AlertCircle,
+  Clock,
   ArrowRight,
   ShieldCheck,
   ExternalLink,
@@ -20,6 +20,7 @@ import {
   Image as ImageIcon
 } from 'lucide-react';
 import { useState } from 'react';
+import { getLoanRoute } from './loanRoutes';
 
 export const DisbursementPage = () => {
   const { id: loanId } = useParams();
@@ -35,15 +36,22 @@ export const DisbursementPage = () => {
       const res = await api.get(`/loans/${loanId}/details`);
       return res.data;
     },
-    refetchInterval: (data: any) =>
-      data?.fiatReceivedConfirmedAt || data?.status === 'DISPUTE_OPEN' || data?.status === 'ACTIVE'
-        ? false
-        : 5000,
+    refetchInterval: (query) => {
+      const loan = query.state.data as any;
+      if (!loan) return 5000;
+      // Stop polling if ACTIVE or CLOSED or DISPUTE_OPEN
+      if (['ACTIVE', 'CLOSED', 'DISPUTE_OPEN'].includes(loan.status)) return false;
+      // Poll if we are waiting for something:
+      // - Borrower waiting for lender (COLLATERAL_LOCKED)
+      // - Lender waiting for borrower (fiat disbursed but not confirmed)
+      return 5000;
+    },
     refetchIntervalInBackground: false,
   });
 
   // 2. Fetch Payment Details (Lenders only usually)
   const isLender = loan?.role === 'LENDER';
+  const isBorrower = loan?.role === 'BORROWER';
 
   const { data: paymentDetails, isLoading: isPaymentLoading } = useQuery({
     queryKey: ['paymentDetails', loanId],
@@ -51,12 +59,12 @@ export const DisbursementPage = () => {
       const res = await api.get(`/loans/${loanId}/payment-details`);
       return res.data;
     },
-    enabled: !!loanId && isLender,
+    enabled: !!loanId && isLender && loan?.status === 'COLLATERAL_LOCKED',
   });
 
   // 3. Mark Disbursed Mutation
   const disburseMutation = useMutation({
-    mutationFn: (data: { transaction_reference: string, proof_image_url: string }) => 
+    mutationFn: (data: { transaction_reference: string, proof_image_url: string }) =>
       api.post(`/loans/${loanId}/disburse`, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['loan', loanId] });
@@ -90,6 +98,19 @@ export const DisbursementPage = () => {
 
   if (!loan) return <div className="p-20 text-center font-bold text-slate-400 uppercase">Loan not found.</div>;
 
+  // ACCESS CONTROL: Block if not in a valid disbursement/active state
+  const allowedStatuses = ['COLLATERAL_LOCKED', 'ACTIVE', 'DISPUTE_OPEN', 'AWAITING_DISBURSEMENT'];
+  if (!allowedStatuses.includes(loan.status)) {
+    return (
+      <div className="max-w-md mx-auto py-20 text-center space-y-4">
+        <AlertCircle className="h-12 w-12 text-amber-500 mx-auto" />
+        <h2 className="text-xl font-bold text-slate-900 uppercase">Stage Not Reached</h2>
+        <p className="text-slate-500 text-sm">Collateral must be locked before disbursement can begin.</p>
+        <Button onClick={() => navigate('/dashboard')} variant="outline">Back to Dashboard</Button>
+      </div>
+    );
+  }
+
   const isDisbursed = !!loan.fiatDisbursedAt;
   const isReceived = !!loan.fiatReceivedConfirmedAt;
   const isDisputed = loan.status === 'DISPUTE_OPEN';
@@ -98,7 +119,7 @@ export const DisbursementPage = () => {
   return (
     <div className="max-w-4xl mx-auto py-12 px-6">
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 items-start">
-        
+
         {/* HEADER */}
         <div className="lg:col-span-12 mb-4 text-center animate-in fade-in slide-in-from-top-4 duration-700">
           <Badge className="mb-4 bg-indigo-50 text-indigo-600 border-none px-4 py-1.5 rounded-full font-black text-[10px] uppercase tracking-widest shadow-sm">
@@ -114,10 +135,10 @@ export const DisbursementPage = () => {
             <CardHeader className="bg-slate-50 border-b p-8 flex flex-row items-center justify-between">
               <div>
                 <CardTitle className="text-xl font-black text-slate-900 flex items-center gap-2">
-                  <CreditCard className="h-6 w-6 text-indigo-600" />    
+                  <CreditCard className="h-6 w-6 text-indigo-600" />
                   Target Account
                 </CardTitle>
-                <p className="text-xs text-slate-400 font-bold uppercase tracking-wider mt-1">Recipient: {loan.borrower.name}</p>
+                <p className="text-xs text-slate-400 font-bold uppercase tracking-wider mt-1">Recipient: {loan.borrowerPseudonym}</p>
               </div>
               <Badge variant="outline" className="px-4 py-1 rounded-full text-[10px] font-black uppercase tracking-widest text-slate-400 border-slate-200">
                 P2P TRANSFER
@@ -133,43 +154,43 @@ export const DisbursementPage = () => {
                 ) : (
                   <div className="space-y-6">
                     <div className="p-8 bg-indigo-600 rounded-[2rem] text-white shadow-xl shadow-indigo-200 relative overflow-hidden group">
-                       <div className="absolute top-0 right-0 p-8 opacity-10 group-hover:scale-110 transition-transform">
-                          <IndianRupee className="h-24 w-24" />
-                       </div>
-                       <p className="text-[10px] font-black uppercase tracking-widest opacity-80 mb-1">Transfer Amount</p>
-                       <h2 className="text-4xl font-black tracking-tight flex items-baseline gap-2">
-                          <span className="text-xl opacity-60">SEND:</span>
-                          ₹{loan.principalAmount.toLocaleString()}
-                       </h2>
-                       <div className="mt-4 flex items-center gap-2 text-[10px] font-black bg-indigo-700/50 w-fit px-3 py-1.5 rounded-full ring-1 ring-white/20 underline-offset-4 decoration-indigo-300">
-                          <AlertCircle className="h-3 w-3" />
-                          VERIFY RECIPIENT BEFORE SENDING
-                       </div>
+                      <div className="absolute top-0 right-0 p-8 opacity-10 group-hover:scale-110 transition-transform">
+                        <IndianRupee className="h-24 w-24" />
+                      </div>
+                      <p className="text-[10px] font-black uppercase tracking-widest opacity-80 mb-1">Transfer Amount</p>
+                      <h2 className="text-4xl font-black tracking-tight flex items-baseline gap-2">
+                        <span className="text-xl opacity-60">SEND:</span>
+                        ₹{loan.principalAmount.toLocaleString()}
+                      </h2>
+                      <div className="mt-4 flex items-center gap-2 text-[10px] font-black bg-indigo-700/50 w-fit px-3 py-1.5 rounded-full ring-1 ring-white/20 underline-offset-4 decoration-indigo-300">
+                        <AlertCircle className="h-3 w-3" />
+                        VERIFY RECIPIENT BEFORE SENDING
+                      </div>
                     </div>
 
                     <div className="p-6 bg-slate-50 rounded-3xl border border-slate-100 flex items-center gap-4 transition-all hover:bg-slate-100/50">
-                       <div className="bg-white p-3 rounded-2xl shadow-sm">
-                          <CreditCard className="h-6 w-6 text-slate-600" />
-                       </div>
-                       <div>
-                          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">Bank Account / IFSC</p>
-                          <p className="text-lg font-black text-slate-900 leading-none">
-                            {paymentDetails?.account_number || 'N/A'}
-                          </p>
-                          <p className="text-xs font-bold text-indigo-600 mt-1">{paymentDetails?.ifsc || ''}</p>
-                       </div>
+                      <div className="bg-white p-3 rounded-2xl shadow-sm">
+                        <CreditCard className="h-6 w-6 text-slate-600" />
+                      </div>
+                      <div>
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">Bank Account / IFSC</p>
+                        <p className="text-lg font-black text-slate-900 leading-none">
+                          {paymentDetails?.account_number || 'N/A'}
+                        </p>
+                        <p className="text-xs font-bold text-indigo-600 mt-1">{paymentDetails?.ifsc || ''}</p>
+                      </div>
                     </div>
 
                     <div className="p-6 bg-slate-900 rounded-3xl border border-slate-800 flex items-center gap-4 shadow-xl transition-all hover:bg-black">
-                       <div className="bg-slate-800 p-3 rounded-2xl shadow-inner">
-                          <Smartphone className="h-6 w-6 text-indigo-400" />
-                       </div>
-                       <div>
-                          <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest leading-none mb-1">UPI ID</p>
-                          <p className="text-lg font-black text-white leading-none">
-                            {paymentDetails?.upi_id || 'N/A'}
-                          </p>
-                       </div>
+                      <div className="bg-slate-800 p-3 rounded-2xl shadow-inner">
+                        <Smartphone className="h-6 w-6 text-indigo-400" />
+                      </div>
+                      <div>
+                        <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest leading-none mb-1">UPI ID</p>
+                        <p className="text-lg font-black text-white leading-none">
+                          {paymentDetails?.upi_id || 'N/A'}
+                        </p>
+                      </div>
                     </div>
                   </div>
                 )
@@ -199,30 +220,29 @@ export const DisbursementPage = () => {
           {/* TRANSFER SUMMARY */}
           <Card className="border-slate-200 shadow-xl rounded-3xl overflow-hidden bg-white uppercase transition-all hover:scale-[1.01]">
             <div className="flex items-center justify-between p-7 px-8">
-                <div>
-                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Current Status</p>
-                  <div className="flex items-center gap-2">
-                    <Badge className={`rounded-full px-4 py-1 text-[10px] font-black uppercase tracking-tighter shadow-sm border-none ${
-                      isDisputed ? 'bg-red-50 text-red-600' : 
-                      isReceived ? 'bg-green-50 text-green-600' : 
-                      isDisbursed ? 'bg-indigo-50 text-indigo-600' : 
-                      'bg-slate-50 text-slate-400'
+              <div>
+                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Current Status</p>
+                <div className="flex items-center gap-2">
+                  <Badge className={`rounded-full px-4 py-1 text-[10px] font-black uppercase tracking-tighter shadow-sm border-none ${isDisputed ? 'bg-red-50 text-red-600' :
+                      isReceived ? 'bg-green-50 text-green-600' :
+                        isDisbursed ? 'bg-indigo-50 text-indigo-600' :
+                          'bg-slate-50 text-slate-400'
                     }`}>
-                      {isDisputed ? 'DISPUTE OPEN' : isReceived ? 'FUNDS RECEIVED' : isDisbursed ? 'PAID BY LENDER' : 'AWAITING TRANSFER'}
-                    </Badge>
-                    {isDisbursed && !isReceived && (
-                      <span className="flex h-2 w-2 rounded-full bg-indigo-500 animate-ping"></span>
-                    )}
-                  </div>
+                    {isDisputed ? 'DISPUTE OPEN' : isReceived ? 'FUNDS RECEIVED' : isDisbursed ? 'PAID BY LENDER' : 'AWAITING TRANSFER'}
+                  </Badge>
+                  {isDisbursed && !isReceived && (
+                    <span className="flex h-2 w-2 rounded-full bg-indigo-500 animate-ping"></span>
+                  )}
                 </div>
-                <div className="text-right">
-                   {!isLender && (
-                      <>
-                        <p className="text-[10px] font-black text-indigo-600 uppercase tracking-widest mb-1">Expected Arrival</p>
-                        <p className="text-[10px] font-bold text-slate-400 italic font-mono uppercase">~2-10 Minutes via IMPS/UPI</p>
-                      </>
-                   )}
-                </div>
+              </div>
+              <div className="text-right">
+                {!isLender && (
+                  <>
+                    <p className="text-[10px] font-black text-indigo-600 uppercase tracking-widest mb-1">Expected Arrival</p>
+                    <p className="text-[10px] font-bold text-slate-400 italic font-mono uppercase">~2-10 Minutes via IMPS/UPI</p>
+                  </>
+                )}
+              </div>
             </div>
           </Card>
         </div>
@@ -239,121 +259,148 @@ export const DisbursementPage = () => {
               </p>
             </CardHeader>
             <CardContent className="p-8 space-y-6 flex-grow">
-              
+
               {isLender ? (
                 <div className="space-y-6 h-full flex flex-col">
-                   {isDisbursed && !isReceived ? (
-                      <div className="p-10 bg-indigo-50 border border-indigo-100 rounded-[2rem] flex flex-col items-center justify-center text-center space-y-4 animate-in zoom-in duration-500">
-                         <div className="bg-white p-4 rounded-full shadow-sm">
-                            <Clock className="h-10 w-10 text-indigo-600 animate-pulse" />
-                         </div>
-                         <div>
-                            <p className="text-sm font-black text-indigo-900 uppercase">Payment Pending</p>
-                            <p className="text-[10px] text-indigo-700 font-bold uppercase tracking-tighter mt-1">Waiting for borrower to confirm receipt ⏳</p>
-                         </div>
+                  {/* STATE 2: Waiting for Borrower (Lender View) */}
+                  {isDisbursed && !isReceived && !isActive && !isDisputed ? (
+                    <div className="p-10 bg-indigo-50 border border-indigo-100 rounded-[2rem] flex flex-col items-center justify-center text-center space-y-4 animate-in zoom-in duration-500">
+                      <div className="bg-white p-4 rounded-full shadow-sm">
+                        <Clock className="h-10 w-10 text-indigo-600 animate-pulse" />
                       </div>
-                   ) : (
-                      <>
-                        <div className="space-y-2">
-                          <Label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Transaction Reference</Label>
-                          <div className="relative">
-                            <ExternalLink className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-300" />
-                            <Input 
-                              placeholder="Bank UTR or UPI Ref ID"
-                              value={txRef}
-                              onChange={(e) => setTxRef(e.target.value)}
-                              disabled={isDisbursed}
-                              className="h-14 pl-12 rounded-2xl border-slate-200 bg-slate-50 focus:bg-white transition-all font-bold text-slate-900"
-                            />
-                          </div>
+                      <div>
+                        <p className="text-sm font-black text-indigo-900 uppercase">Waiting for Confirmation</p>
+                        <p className="text-[10px] text-indigo-700 font-bold uppercase tracking-tighter mt-1">Borrower must confirm receipt of funds ⏳</p>
+                      </div>
+                    </div>
+                  ) : isDisbursed || isActive ? (
+                    /* STATE 3: Success (Already Disbursed) */
+                    <div className="p-10 bg-green-50 border border-green-100 rounded-[2rem] flex flex-col items-center justify-center text-center space-y-4">
+                      <div className="bg-white p-4 rounded-full shadow-sm">
+                        <CheckCircle2 className="h-10 w-10 text-green-600" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-black text-green-900 uppercase">Disbursement Logged</p>
+                        <p className="text-[10px] text-green-700 font-bold uppercase tracking-tighter mt-1">Ref: {loan.disbursementReference}</p>
+                      </div>
+                    </div>
+                  ) : (
+                    /* STATE 1: Mark as Paid (Lender View) */
+                    <>
+                      <div className="space-y-2">
+                        <Label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Transaction Reference</Label>
+                        <div className="relative">
+                          <ExternalLink className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-300" />
+                          <Input
+                            placeholder="Bank UTR or UPI Ref ID"
+                            value={txRef}
+                            onChange={(e) => setTxRef(e.target.value)}
+                            className="h-14 pl-12 rounded-2xl border-slate-200 bg-slate-50 focus:bg-white transition-all font-bold text-slate-900"
+                          />
                         </div>
+                      </div>
 
-                        <div className="space-y-2">
-                          <Label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Transfer Proof URL</Label>
-                          <div className="relative">
-                            <ImageIcon className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-300" />
-                            <Input 
-                              value={proofUrl}
-                              onChange={(e) => setProofUrl(e.target.value)}
-                              disabled={isDisbursed}
-                              className="h-14 pl-12 rounded-2xl border-slate-200 bg-slate-50 focus:bg-white transition-all text-[11px] font-medium text-indigo-600 italic"
-                            />
-                          </div>
+                      <div className="space-y-2">
+                        <Label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Transfer Proof URL (Optional)</Label>
+                        <div className="relative">
+                          <ImageIcon className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-300" />
+                          <Input
+                            placeholder="https://..."
+                            value={proofUrl}
+                            onChange={(e) => setProofUrl(e.target.value)}
+                            className="h-14 pl-12 rounded-2xl border-slate-200 bg-slate-50 focus:bg-white transition-all text-[11px] font-medium text-indigo-600 italic"
+                          />
                         </div>
+                      </div>
 
-                        <div className="p-4 bg-amber-50 border border-amber-100 rounded-2xl flex items-start gap-3">
-                           <AlertCircle className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
-                           <p className="text-[10px] text-amber-700 font-bold uppercase tracking-tight leading-snug">
-                             WARNING: ONLY mark as paid AFTER the actual transfer is completed. Incorrect notification will cause disputes ⚠️
-                           </p>
-                        </div>
-                      </>
-                   )}
+                      <div className="p-4 bg-amber-50 border border-amber-100 rounded-2xl flex items-start gap-3">
+                        <AlertCircle className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
+                        <p className="text-[10px] text-amber-700 font-bold uppercase tracking-tight leading-snug">
+                          WARNING: ONLY mark as paid AFTER the actual transfer is completed. ⚠️
+                        </p>
+                      </div>
+                    </>
+                  )}
 
-                   <div className="mt-auto pt-6">
-                      <Button 
-                        disabled={!txRef || disburseMutation.isPending || isDisbursed}
+                  {!isDisbursed && !isActive && (
+                    <div className="mt-auto pt-6">
+                      <Button
+                        disabled={!txRef || disburseMutation.isPending}
                         onClick={() => disburseMutation.mutate({ transaction_reference: txRef, proof_image_url: proofUrl })}
                         className="w-full bg-slate-900 hover:bg-black text-white h-16 rounded-3xl font-black text-base shadow-xl transition-all active:scale-95 disabled:opacity-50 group uppercase tracking-widest"
                       >
-                        {disburseMutation.isPending ? 'PROCESSING...' : isDisbursed ? 'PAYMENT LOGGED' : 'MARK AS PAID'}
-                        {!isDisbursed && <ArrowRight className="h-5 w-5 ml-2 group-hover:translate-x-1 transition-transform" />}
+                        {disburseMutation.isPending ? 'PROCESSING...' : 'MARK AS PAID'}
+                        <ArrowRight className="h-5 w-5 ml-2 group-hover:translate-x-1 transition-transform" />
                       </Button>
                     </div>
+                  )}
                 </div>
               ) : (
                 <div className="space-y-6 h-full flex flex-col">
-                   {!isDisbursed ? (
-                     <div className="p-12 border-2 border-dashed border-slate-100 rounded-[2rem] flex flex-col items-center justify-center text-center space-y-4">
-                        <Clock className="h-12 w-12 text-slate-200 animate-pulse" />
+                  {/* STATE 1: Waiting for Lender (Borrower View) */}
+                  {!isDisbursed && !isActive ? (
+                    <div className="p-12 border-2 border-dashed border-slate-100 rounded-[2rem] flex flex-col items-center justify-center text-center space-y-4">
+                      <Clock className="h-12 w-12 text-slate-200 animate-pulse" />
+                      <div>
+                        <p className="text-slate-400 font-bold uppercase tracking-widest text-[10px]">Lender is initiating transfer...</p>
+                        <p className="text-[9px] text-slate-300 font-bold uppercase tracking-tighter mt-2">Funds usually arrive within a few minutes ⚡</p>
+                      </div>
+                    </div>
+                  ) : isActive || isReceived ? (
+                    /* STATE 3: Success (Borrower View) */
+                    <div className="p-10 bg-green-50 border border-green-100 rounded-[2rem] flex flex-col items-center justify-center text-center space-y-4">
+                      <div className="bg-white p-4 rounded-full shadow-sm">
+                        <CheckCircle2 className="h-10 w-10 text-green-600" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-black text-green-900 uppercase">Funds Received</p>
+                        <p className="text-[10px] text-green-700 font-bold uppercase tracking-tighter mt-1">Loan is now active!</p>
+                      </div>
+                    </div>
+                  ) : (
+                    /* STATE 2: Confirm Receipt (Borrower View) */
+                    <div className="space-y-6 animate-in slide-in-from-right-8 duration-500 uppercase">
+                      <div className="p-6 bg-green-50 rounded-3xl border border-green-100 flex items-center gap-4 shadow-sm shadow-green-100/50">
+                        <CheckCircle2 className="h-8 w-8 text-green-500 shrink-0" />
                         <div>
-                          <p className="text-slate-400 font-bold uppercase tracking-widest text-[10px]">Lender is initiating transfer...</p>
-                          <p className="text-[9px] text-slate-300 font-bold uppercase tracking-tighter mt-2">Funds usually arrive within a few minutes ⚡</p>
+                          <p className="text-xs font-black text-green-900 uppercase">TRANSFER MARKED BY LENDER</p>
+                          <p className="text-[10px] text-green-700 font-bold uppercase tracking-tight mt-0.5">Ref: {loan.disbursementReference}</p>
                         </div>
-                     </div>
-                   ) : (
-                     <div className="space-y-6 animate-in slide-in-from-right-8 duration-500 uppercase">
-                        <div className="p-6 bg-green-50 rounded-3xl border border-green-100 flex items-center gap-4 shadow-sm shadow-green-100/50">
-                          <CheckCircle2 className="h-8 w-8 text-green-500 shrink-0" />
-                          <div>
-                            <p className="text-xs font-black text-green-900 uppercase">TRANSFER COMPLETED BY LENDER</p>
-                            <p className="text-[10px] text-green-700 font-bold uppercase tracking-tight mt-0.5">Ref: {loan.disbursementReference}</p>
-                          </div>
-                        </div>
+                      </div>
 
-                        <Button 
-                          onClick={() => confirmMutation.mutate()}
-                          disabled={confirmMutation.isPending || isReceived || isDisputed}
-                          className="w-full bg-indigo-600 hover:bg-indigo-700 text-white h-16 rounded-3xl font-black text-base shadow-xl shadow-indigo-100 transition-all active:scale-95 disabled:opacity-50 uppercase tracking-widest"
+                      <Button
+                        onClick={() => confirmMutation.mutate()}
+                        disabled={confirmMutation.isPending || isReceived || isDisputed}
+                        className="w-full bg-indigo-600 hover:bg-indigo-700 text-white h-16 rounded-3xl font-black text-base shadow-xl shadow-indigo-100 transition-all active:scale-95 disabled:opacity-50 uppercase tracking-widest"
+                      >
+                        {confirmMutation.isPending ? 'CONFIRMING...' : 'CONFIRM RECEIPT'}
+                      </Button>
+
+                      <div className="pt-4 border-t border-slate-100 uppercase">
+                        <Button
+                          variant="ghost"
+                          onClick={() => disputeMutation.mutate()}
+                          disabled={disputeMutation.isPending || isReceived || isDisputed}
+                          className="w-full text-red-500 hover:text-red-600 hover:bg-red-50 h-14 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-colors tracking-widest"
                         >
-                          {confirmMutation.isPending ? 'CONFIRMING...' : 'CONFIRM RECEIVED'}
+                          {isDisputed ? 'DISPUTE FILED' : 'RAISE DISPUTE'}
                         </Button>
-
-                        <div className="pt-4 border-t border-slate-100 uppercase">
-                          <Button 
-                            variant="ghost" 
-                            onClick={() => disputeMutation.mutate()}
-                            disabled={disputeMutation.isPending || isReceived || isDisputed}
-                            className="w-full text-red-500 hover:text-red-600 hover:bg-red-50 h-14 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-colors tracking-widest"
-                          >
-                            {isDisputed ? 'DISPUTE FILED' : 'RAISE DISPUTE'}
-                          </Button>
-                        </div>
-                     </div>
-                   )}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </CardContent>
             <CardFooter className="p-8 pt-0 flex flex-col gap-3">
-               <div className="flex items-center gap-3 p-4 bg-slate-50 rounded-2xl border border-slate-100 w-full shadow-inner">
-                  <ShieldCheck className="h-4 w-4 text-slate-400 shrink-0" />
-                  <p className="text-[10px] text-slate-500 font-black leading-tight uppercase tracking-widest">
-                    SECURE PEER-TO-PEER CHANNEL
-                  </p>
-               </div>
-               <p className="text-[9px] text-slate-400 font-bold text-center uppercase tracking-tight px-4 leading-tight italic">
-                 Links to your bank transaction proofs will be audited in case of dispute. LinkBit does not hold fiat funds.
-               </p>
+              <div className="flex items-center gap-3 p-4 bg-slate-50 rounded-2xl border border-slate-100 w-full shadow-inner">
+                <ShieldCheck className="h-4 w-4 text-slate-400 shrink-0" />
+                <p className="text-[10px] text-slate-500 font-black leading-tight uppercase tracking-widest">
+                  SECURE PEER-TO-PEER CHANNEL
+                </p>
+              </div>
+              <p className="text-[9px] text-slate-400 font-bold text-center uppercase tracking-tight px-4 leading-tight italic">
+                Links to your bank transaction proofs will be audited in case of dispute. LinkBit does not hold fiat funds.
+              </p>
             </CardFooter>
           </Card>
         </div>
@@ -361,7 +408,7 @@ export const DisbursementPage = () => {
         {/* BOTTOM NAV: SUCCESS BLOCK */}
         {(isActive || isReceived) && (
           <div className="lg:col-span-12 animate-in slide-in-from-bottom-8 duration-500">
-             <Card className="bg-green-600 border-none shadow-2xl p-8 rounded-[2.5rem] flex flex-col md:flex-row items-center justify-between gap-6">
+            <Card className="bg-green-600 border-none shadow-2xl p-8 rounded-[2.5rem] flex flex-col md:flex-row items-center justify-between gap-6">
               <div className="flex items-center gap-6">
                 <div className="bg-green-500 p-4 rounded-3xl shadow-inner shadow-green-700/20">
                   <CheckCircle2 className="h-10 w-10 text-green-100" />
@@ -371,8 +418,8 @@ export const DisbursementPage = () => {
                   <p className="text-green-100 font-bold text-[10px] tracking-widest opacity-80">Fiat Received • Collateral Locked • Term Clock Started</p>
                 </div>
               </div>
-              <Button 
-                onClick={() => navigate(`/loans/${loanId}`)}
+              <Button
+                onClick={() => navigate(getLoanRoute(loanId!, loan.status))}
                 className="bg-white hover:bg-green-50 text-green-600 h-16 px-10 rounded-3xl font-black text-base shadow-xl shadow-green-900/20 group uppercase tracking-widest"
               >
                 BACK TO LOAN DETAIL
@@ -383,8 +430,8 @@ export const DisbursementPage = () => {
         )}
 
         {isDisputed && (
-           <div className="lg:col-span-12 animate-in slide-in-from-bottom-8 duration-500">
-             <Card className="bg-red-600 border-none shadow-2xl p-8 rounded-[2.5rem] flex flex-col md:flex-row items-center justify-between gap-6">
+          <div className="lg:col-span-12 animate-in slide-in-from-bottom-8 duration-500">
+            <Card className="bg-red-600 border-none shadow-2xl p-8 rounded-[2.5rem] flex flex-col md:flex-row items-center justify-between gap-6">
               <div className="flex items-center gap-6">
                 <div className="bg-red-500 p-4 rounded-3xl shadow-inner">
                   <AlertCircle className="h-10 w-10 text-red-100" />
@@ -394,7 +441,7 @@ export const DisbursementPage = () => {
                   <p className="text-red-200 font-bold text-xs uppercase tracking-tight">Our compliance team is verifying the bank transaction proof.</p>
                 </div>
               </div>
-              <Button 
+              <Button
                 onClick={() => navigate(`/loans/${loanId}`)}
                 className="bg-white hover:bg-red-50 text-red-600 h-14 px-8 rounded-2xl font-black text-xs shadow-xl shadow-red-900/20"
               >

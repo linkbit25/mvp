@@ -1,5 +1,6 @@
 package com.linkbit.mvp.repository;
 
+import com.linkbit.mvp.domain.ActorType;
 import com.linkbit.mvp.domain.PlatformFee;
 import com.linkbit.mvp.domain.PlatformFeeStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -12,6 +13,7 @@ import java.util.UUID;
 
 @Repository
 public interface PlatformFeeRepository extends JpaRepository<PlatformFee, UUID> {
-    Optional<PlatformFee> findTopByLoanIdAndStatusInOrderByCreatedAtDesc(UUID loanId, Collection<PlatformFeeStatus> statuses);
+    Optional<PlatformFee> findTopByLoanIdAndPayerRoleAndStatusInOrderByCreatedAtDesc(UUID loanId, ActorType payerRole, Collection<PlatformFeeStatus> statuses);
+    List<PlatformFee> findByLoanIdAndStatus(UUID loanId, PlatformFeeStatus status);
     List<PlatformFee> findByStatusOrderByCreatedAtDesc(PlatformFeeStatus status);
 }

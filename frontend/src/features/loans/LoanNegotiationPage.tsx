@@ -24,6 +24,7 @@ interface ChatMessage {
   message_text: string;
   timestamp: string;
 }
+import { getLoanRoute } from './loanRoutes';
 
 export const LoanNegotiationPage = () => {
   const { id: loanId } = useParams();
@@ -35,14 +36,14 @@ export const LoanNegotiationPage = () => {
   const [message, setMessage] = useState('');
   const [showFlash, setShowFlash] = useState(false);
   const [editTerms, setEditTerms] = useState({
-    principal_amount: 0,
-    interest_rate: 0,
-    tenure_days: 0,
-    repayment_type: 'BULLET',
-    emi_count: 1,
-    expected_ltv_percent: 50,
-    margin_call_ltv_percent: 70,
-    liquidation_ltv_percent: 85
+    principalAmount: 0,
+    interestRate: 0,
+    tenureDays: 0,
+    repaymentType: 'BULLET' as 'BULLET' | 'EMI',
+    emiCount: 1,
+    expectedLtvPercent: 50,
+    marginCallLtvPercent: 70,
+    liquidationLtvPercent: 85
   });
 
   const { data: loan, isLoading: isLoadingLoan } = useQuery({
@@ -66,24 +67,24 @@ export const LoanNegotiationPage = () => {
   useEffect(() => {
     if (loan) {
       const hasChanged = 
-        editTerms.principal_amount !== loan.principalAmount ||
-        editTerms.interest_rate !== loan.interestRate ||
-        editTerms.tenure_days !== loan.tenureDays;
+        editTerms.principalAmount !== loan.principalAmount ||
+        editTerms.interestRate !== loan.interestRate ||
+        editTerms.tenureDays !== loan.tenureDays;
 
-      if (hasChanged && editTerms.principal_amount !== 0) {
+      if (hasChanged && editTerms.principalAmount !== 0) {
         setShowFlash(true);
         setTimeout(() => setShowFlash(false), 2000);
       }
 
       setEditTerms({
-        principal_amount: loan.principalAmount || 0,
-        interest_rate: loan.interestRate || 0,
-        tenure_days: loan.tenureDays || 0,
-        repayment_type: loan.repaymentType || 'BULLET',
-        emi_count: loan.emiCount || 1,
-        expected_ltv_percent: loan.expectedLtvPercent || 50,
-        margin_call_ltv_percent: loan.marginCallLtvPercent || 70,
-        liquidation_ltv_percent: loan.liquidationLtvPercent || 85
+        principalAmount: loan.principalAmount || 0,
+        interestRate: loan.interestRate || 0,
+        tenureDays: loan.tenureDays || 0,
+        repaymentType: loan.repaymentType || 'BULLET',
+        emiCount: loan.emiCount || 1,
+        expectedLtvPercent: loan.expectedLtvPercent || 50,
+        marginCallLtvPercent: loan.marginCallLtvPercent || 70,
+        liquidationLtvPercent: loan.liquidationLtvPercent || 85
       });
     }
   }, [loan]);
@@ -244,8 +245,8 @@ export const LoanNegotiationPage = () => {
               <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Principal Amount (₹)</label>
               <Input
                 type="number"
-                value={editTerms.principal_amount}
-                onChange={(e) => setEditTerms({ ...editTerms, principal_amount: Number(e.target.value) })}
+                value={editTerms.principalAmount}
+                onChange={(e) => setEditTerms({ ...editTerms, principalAmount: Number(e.target.value) })}
                 disabled={!canEdit}
                 className={`h-11 font-semibold text-lg border-slate-200 bg-white transition-all duration-500 ${
                   showFlash ? 'ring-2 ring-indigo-500 bg-indigo-50/50' : ''
@@ -259,8 +260,8 @@ export const LoanNegotiationPage = () => {
                 <Input
                   type="number"
                   step="0.1"
-                  value={editTerms.interest_rate}
-                  onChange={(e) => setEditTerms({ ...editTerms, interest_rate: Number(e.target.value) })}
+                  value={editTerms.interestRate}
+                  onChange={(e) => setEditTerms({ ...editTerms, interestRate: Number(e.target.value) })}
                   disabled={!canEdit}
                   className={`h-11 font-semibold transition-all duration-500 ${
                     showFlash ? 'ring-2 ring-indigo-500 bg-indigo-50/50' : ''
@@ -271,8 +272,8 @@ export const LoanNegotiationPage = () => {
                 <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Tenure (Days)</label>
                 <Input
                   type="number"
-                  value={editTerms.tenure_days}
-                  onChange={(e) => setEditTerms({ ...editTerms, tenure_days: Number(e.target.value) })}
+                  value={editTerms.tenureDays}
+                  onChange={(e) => setEditTerms({ ...editTerms, tenureDays: Number(e.target.value) })}
                   disabled={!canEdit}
                   className={`h-11 font-semibold transition-all duration-500 ${
                     showFlash ? 'ring-2 ring-indigo-500 bg-indigo-50/50' : ''
@@ -286,15 +287,15 @@ export const LoanNegotiationPage = () => {
             <div className="space-y-4">
               <div className="flex justify-between items-center bg-indigo-50/30 p-3 rounded-xl border border-indigo-50">
                 <span className="text-sm font-medium text-slate-600">Expected LTV</span>
-                <span className="text-sm font-bold text-indigo-700">{editTerms.expected_ltv_percent}%</span>
+                <span className="text-sm font-bold text-indigo-700">{editTerms.expectedLtvPercent}%</span>
               </div>
               <div className="flex justify-between items-center bg-amber-50/30 p-3 rounded-xl border border-amber-50">
                 <span className="text-sm font-medium text-slate-600">Margin Call LTV</span>
-                <span className="text-sm font-bold text-amber-700">{editTerms.margin_call_ltv_percent}%</span>
+                <span className="text-sm font-bold text-amber-700">{editTerms.marginCallLtvPercent}%</span>
               </div>
               <div className="flex justify-between items-center bg-red-50/30 p-3 rounded-xl border border-red-100">
                 <span className="text-sm font-medium text-slate-600">Liquidation LTV</span>
-                <span className="text-sm font-bold text-red-700">{editTerms.liquidation_ltv_percent}%</span>
+                <span className="text-sm font-bold text-red-700">{editTerms.liquidationLtvPercent}%</span>
               </div>
             </div>
           </div>
@@ -338,7 +339,7 @@ export const LoanNegotiationPage = () => {
                 <span>CONTRACT FINALIZED</span>
               </div>
               <Button 
-                onClick={() => navigate(`/loans/${loanId}`)}
+                onClick={() => navigate(getLoanRoute(loanId!, loan.status))}
                 className="w-full bg-indigo-600 hover:bg-indigo-700 h-11 rounded-xl group"
               >
                 Go to Execution Phase

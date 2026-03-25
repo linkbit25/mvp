@@ -8,6 +8,7 @@ import com.linkbit.mvp.domain.PlatformFee;
 import com.linkbit.mvp.domain.PlatformFeeStatus;
 import com.linkbit.mvp.domain.User;
 import com.linkbit.mvp.dto.FeeResponse;
+import com.linkbit.mvp.dto.PendingFeeResponse;
 import com.linkbit.mvp.repository.LoanRepository;
 import com.linkbit.mvp.repository.PlatformFeeRepository;
 import com.linkbit.mvp.repository.UserRepository;
@@ -33,26 +34,34 @@ public class PaymentService {
 
     @Transactional
     public FeeResponse initiateFeePayment(String email, UUID loanId) {
-        User borrower = userRepository.findByEmail(email)
+        User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new UsernameNotFoundException("User not found"));
         Loan loan = loanRepository.findById(loanId)
                 .orElseThrow(() -> new RuntimeException("Loan not found"));
 
-        if (!loan.getBorrower().getId().equals(borrower.getId())) {
-            throw new RuntimeException("Only borrower can initiate fee payment");
+        ActorType role;
+        if (loan.getBorrower().getId().equals(user.getId())) {
+            role = ActorType.BORROWER;
+        } else if (loan.getLender() != null && loan.getLender().getId().equals(user.getId())) {
+            role = ActorType.LENDER;
+        } else {
+            throw new RuntimeException("User is not authorized for this loan");
         }
+
         if (loan.getStatus() != LoanStatus.AWAITING_FEE) {
             throw new RuntimeException("Loan is not awaiting fee");
         }
 
+        // Divide 2% total fee into 1% each for borrower and lender
         BigDecimal feeAmount = loan.getPrincipalAmount()
-                .multiply(new BigDecimal("0.02"))
+                .multiply(new BigDecimal("0.01"))
                 .setScale(2, RoundingMode.HALF_UP);
 
         PlatformFee savedFee = platformFeeRepository
-                .findTopByLoanIdAndStatusInOrderByCreatedAtDesc(loanId, List.of(PlatformFeeStatus.PENDING, PlatformFeeStatus.SUCCESS))
+                .findTopByLoanIdAndPayerRoleAndStatusInOrderByCreatedAtDesc(loanId, role, List.of(PlatformFeeStatus.PENDING, PlatformFeeStatus.SUCCESS))
                 .orElseGet(() -> platformFeeRepository.save(PlatformFee.builder()
                         .loan(loan)
+                        .payerRole(role)
                         .amountInr(feeAmount)
                         .status(PlatformFeeStatus.PENDING)
                         .build()));
@@ -74,13 +83,36 @@ public class PaymentService {
         }
 
         fee.setStatus(PlatformFeeStatus.SUCCESS);
-        platformFeeRepository.save(fee);
+        platformFeeRepository.saveAndFlush(fee);
 
         Loan loan = fee.getLoan();
         if (loan.getStatus() == LoanStatus.AWAITING_FEE) {
-            stateMachineService.transition(loan, LoanAction.PAY_FEE, ActorType.BORROWER);
-            loanRepository.save(loan);
-            chatService.sendSystemMessage(loan.getId(), "SYSTEM: Processing fee verified. Loan status: AWAITING_COLLATERAL.");
+            // Check if both parties have paid
+            List<PlatformFee> successFees = platformFeeRepository.findByLoanIdAndStatus(loan.getId(), PlatformFeeStatus.SUCCESS);
+            boolean borrowerPaid = successFees.stream().anyMatch(f -> f.getPayerRole() == ActorType.BORROWER);
+            boolean lenderPaid = successFees.stream().anyMatch(f -> f.getPayerRole() == ActorType.LENDER);
+
+            if (borrowerPaid && lenderPaid) {
+                stateMachineService.transition(loan, LoanAction.PAY_FEE, ActorType.ADMIN);
+                loanRepository.save(loan);
+                chatService.sendSystemMessage(loan.getId(), "SYSTEM: Both borrower and lender fees verified. Loan status: AWAITING_COLLATERAL.");
+            } else {
+                String missingParties = !borrowerPaid ? "BORROWER" : "LENDER";
+                chatService.sendSystemMessage(loan.getId(), "SYSTEM: Fee payment verified for " + fee.getPayerRole() + ". Waiting for " + missingParties + ".");
+            }
         }
+    }
+
+    @Transactional(readOnly = true)
+    public List<PendingFeeResponse> getAllPendingFees() {
+        return platformFeeRepository.findByStatusOrderByCreatedAtDesc(PlatformFeeStatus.PENDING).stream()
+                .map(fee -> PendingFeeResponse.builder()
+                        .feeId(fee.getId())
+                        .amountInr(fee.getAmountInr())
+                        .status(fee.getStatus())
+                        .payerRole(fee.getPayerRole())
+                        .createdAt(fee.getCreatedAt())
+                        .build())
+                .toList();
     }
 }

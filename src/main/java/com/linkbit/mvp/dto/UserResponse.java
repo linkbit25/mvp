@@ -14,6 +14,7 @@ public class UserResponse {
     private String email;
     private String phoneNumber;
     private String pseudonym;
+    private String fullLegalName;
     private KycStatus kycStatus;
     private boolean admin;
     private BankDetails bankDetails;

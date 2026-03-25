@@ -164,14 +164,25 @@ public class AuthService {
         
         UserKycDetails details = user.getKycDetails();
         if (details == null) {
-            details = UserKycDetails.builder().user(user).build();
+            details = UserKycDetails.builder()
+                    .userId(user.getId())
+                    .user(user)
+                    .build();
         }
+        
+        details.setFullLegalName(request.getFullLegalName());
         details.setBankAccountNumber(request.getBankAccountNumber());
         details.setIfsc(request.getIfsc());
         details.setUpiId(request.getUpiId());
-        user.setKycDetails(details);
         
+        // Ensure nationalIdHash is not null for schema constraints if any
+        if (details.getNationalIdHash() == null) {
+            details.setNationalIdHash("PENDING_VERIFICATION");
+        }
+        
+        user.setKycDetails(details);
         user.setKycStatus(KycStatus.SUBMITTED);
-        userRepository.save(user);
+        
+        userRepository.saveAndFlush(user);
     }
 }

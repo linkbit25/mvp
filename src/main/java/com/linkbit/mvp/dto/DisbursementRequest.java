@@ -17,7 +17,6 @@ public class DisbursementRequest {
     @JsonProperty("transaction_reference")
     private String transactionReference;
 
-    @NotBlank(message = "Proof image URL is required")
     @JsonProperty("proof_image_url")
     private String proofImageUrl;
 }

@@ -1,44 +1,47 @@
 package com.linkbit.mvp.dto;
 
-import com.fasterxml.jackson.annotation.JsonProperty;
 import com.linkbit.mvp.domain.RepaymentType;
 import jakarta.validation.constraints.NotNull;
 import lombok.Data;
+import lombok.NoArgsConstructor;
+import lombok.AllArgsConstructor;
 
 import java.math.BigDecimal;
 
 @Data
+@NoArgsConstructor
+@AllArgsConstructor
 public class UpdateTermsRequest {
 
     @NotNull
-    @JsonProperty("principal_amount")
+    @com.fasterxml.jackson.annotation.JsonProperty("principalAmount")
     private BigDecimal principalAmount;
 
     @NotNull
-    @JsonProperty("interest_rate")
+    @com.fasterxml.jackson.annotation.JsonProperty("interestRate")
     private BigDecimal interestRate;
 
     @NotNull
-    @JsonProperty("tenure_days")
+    @com.fasterxml.jackson.annotation.JsonProperty("tenureDays")
     private Integer tenureDays;
 
     @NotNull
-    @JsonProperty("repayment_type")
+    @com.fasterxml.jackson.annotation.JsonProperty("repaymentType")
     private RepaymentType repaymentType;
 
     @NotNull
-    @JsonProperty("emi_count")
+    @com.fasterxml.jackson.annotation.JsonProperty("emiCount")
     private Integer emiCount;
 
     @NotNull
-    @JsonProperty("expected_ltv_percent")
+    @com.fasterxml.jackson.annotation.JsonProperty("expectedLtvPercent")
     private Integer expectedLtvPercent;
 
     @NotNull
-    @JsonProperty("margin_call_ltv_percent")
+    @com.fasterxml.jackson.annotation.JsonProperty("marginCallLtvPercent")
     private Integer marginCallLtvPercent;
 
     @NotNull
-    @JsonProperty("liquidation_ltv_percent")
+    @com.fasterxml.jackson.annotation.JsonProperty("liquidationLtvPercent")
     private Integer liquidationLtvPercent;
 }

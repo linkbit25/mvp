@@ -18,6 +18,7 @@ import {
   Info
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
+import { getLoanRoute } from './loanRoutes';
 
 export const CollateralDepositPage = () => {
   const { id: loanId } = useParams();
@@ -231,67 +232,83 @@ export const CollateralDepositPage = () => {
               <p className="text-xs text-slate-400 font-bold uppercase tracking-tight">Manual trigger for network verification</p>
             </CardHeader>
             <CardContent className="p-8 space-y-6">
-              <form onSubmit={handleSubmit} className="space-y-6">
-                <div className="space-y-2">
-                  <Label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Bitcoin Amount (BTC)</Label>
-                  <div className="relative">
-                    <Bitcoin className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-300" />
-                    <Input 
-                      type="number" 
-                      step="0.00000001"
-                      placeholder="e.g. 0.045"
-                      value={amountBtc}
-                      onChange={(e) => setAmountBtc(e.target.value)}
-                      disabled={hasSubmitted || isLocked}
-                      className="h-14 pl-12 rounded-2xl border-slate-200 bg-slate-50 focus:bg-white focus:ring-indigo-500 transition-all font-bold text-slate-900"
-                    />
-                  </div>
-                </div>
+              {loan.role === 'BORROWER' ? (
+                <>
+                  <form onSubmit={handleSubmit} className="space-y-6">
+                    <div className="space-y-2">
+                      <Label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Bitcoin Amount (BTC)</Label>
+                      <div className="relative">
+                        <Bitcoin className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-300" />
+                        <Input 
+                          type="number" 
+                          step="0.00000001"
+                          placeholder="e.g. 0.045"
+                          value={amountBtc}
+                          onChange={(e) => setAmountBtc(e.target.value)}
+                          disabled={hasSubmitted || isLocked}
+                          className="h-14 pl-12 rounded-2xl border-slate-200 bg-slate-50 focus:bg-white focus:ring-indigo-500 transition-all font-bold text-slate-900"
+                        />
+                      </div>
+                    </div>
 
-                <div className="space-y-2">
-                  <Label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Transaction ID (TXID)</Label>
-                  <div className="relative">
-                    <ExternalLink className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-300" />
-                    <Input 
-                      placeholder="Paste TX Hash (Optional for Mock)"
-                      value={txId}
-                      onChange={(e) => setTxId(e.target.value)}
-                      disabled={hasSubmitted || isLocked}
-                      className="h-14 pl-12 rounded-2xl border-slate-200 bg-slate-50 focus:bg-white transition-all text-xs font-mono font-bold"
-                    />
-                  </div>
-                </div>
+                    <div className="space-y-2">
+                      <Label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Transaction ID (TXID)</Label>
+                      <div className="relative">
+                        <ExternalLink className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-300" />
+                        <Input 
+                          placeholder="Paste TX Hash (Optional for Mock)"
+                          value={txId}
+                          onChange={(e) => setTxId(e.target.value)}
+                          disabled={hasSubmitted || isLocked}
+                          className="h-14 pl-12 rounded-2xl border-slate-200 bg-slate-50 focus:bg-white transition-all text-xs font-mono font-bold"
+                        />
+                      </div>
+                    </div>
 
-                <Button 
-                  type="submit"
-                  disabled={!amountBtc || depositMutation.isPending || hasSubmitted || isLocked}
-                  className="w-full bg-slate-900 hover:bg-black text-white h-16 rounded-3xl font-black text-base shadow-xl transition-all hover:-translate-y-1 active:scale-95 disabled:opacity-50 disabled:translate-y-0 group"
-                >
-                  {depositMutation.isPending ? (
-                    <>
-                      <Clock className="h-5 w-5 mr-3 animate-spin" />
-                      SUBMITTING...
-                    </>
-                  ) : hasSubmitted ? (
-                    <>
-                      <CheckCircle2 className="h-5 w-5 mr-3 text-green-400" />
-                      SUBMITTED
-                    </>
-                  ) : (
-                    <>
-                      SUBMIT DEPOSIT
-                      <ArrowRight className="h-5 w-5 ml-2 group-hover:translate-x-1 transition-transform" />
-                    </>
+                    <Button 
+                      type="submit"
+                      disabled={!amountBtc || depositMutation.isPending || hasSubmitted || isLocked}
+                      className="w-full bg-slate-900 hover:bg-black text-white h-16 rounded-3xl font-black text-base shadow-xl transition-all hover:-translate-y-1 active:scale-95 disabled:opacity-50 disabled:translate-y-0 group"
+                    >
+                      {depositMutation.isPending ? (
+                        <>
+                          <Clock className="h-5 w-5 mr-3 animate-spin" />
+                          SUBMITTING...
+                        </>
+                      ) : hasSubmitted ? (
+                        <>
+                          <CheckCircle2 className="h-5 w-5 mr-3 text-green-400" />
+                          SUBMITTED
+                        </>
+                      ) : (
+                        <>
+                          SUBMIT DEPOSIT
+                          <ArrowRight className="h-5 w-5 ml-2 group-hover:translate-x-1 transition-transform" />
+                        </>
+                      )}
+                    </Button>
+                  </form>
+
+                  {hasSubmitted && (
+                    <div className="flex items-center gap-4 p-5 bg-indigo-50 border border-indigo-100 rounded-3xl animate-in zoom-in duration-300">
+                      <CheckCircle2 className="h-6 w-6 text-indigo-500" />
+                      <div>
+                        <p className="text-xs font-black text-indigo-900 uppercase tracking-tight">Deposit Detected!</p>
+                        <p className="text-[10px] text-indigo-700 font-medium leading-tight mt-0.5 uppercase">Waiting for 1 LinkBit network confirmation...</p>
+                      </div>
+                    </div>
                   )}
-                </Button>
-              </form>
-
-              {hasSubmitted && (
-                <div className="flex items-center gap-4 p-5 bg-indigo-50 border border-indigo-100 rounded-3xl animate-in zoom-in duration-300">
-                  <CheckCircle2 className="h-6 w-6 text-indigo-500" />
+                </>
+              ) : (
+                <div className="flex flex-col items-center justify-center p-8 bg-slate-50 rounded-3xl border border-slate-100 space-y-4 text-center">
+                  <div className="h-16 w-16 bg-white rounded-full shadow-inner flex items-center justify-center">
+                    <Clock className="h-8 w-8 text-indigo-600 animate-pulse" />
+                  </div>
                   <div>
-                    <p className="text-xs font-black text-indigo-900 uppercase tracking-tight">Deposit Detected!</p>
-                    <p className="text-[10px] text-indigo-700 font-medium leading-tight mt-0.5 uppercase">Waiting for 1 LinkBit network confirmation...</p>
+                    <h3 className="text-sm font-black text-slate-900 uppercase tracking-widest">Lender View</h3>
+                    <p className="text-[10px] text-slate-500 font-medium mt-1 leading-relaxed uppercase">
+                      Only the Borrower can deposit collateral. You will be notified once the BTC is locked in escrow.
+                    </p>
                   </div>
                 </div>
               )}
@@ -336,7 +353,7 @@ export const CollateralDepositPage = () => {
                 </div>
               </div>
               <Button 
-                onClick={() => navigate(`/loans/${loanId}`)}
+                onClick={() => navigate(getLoanRoute(loanId!, loan.status))}
                 className="bg-white hover:bg-indigo-50 text-indigo-600 h-16 px-10 rounded-3xl font-black text-base shadow-xl shadow-indigo-900/20 group"
               >
                 PROCEED TO DASHBOARD

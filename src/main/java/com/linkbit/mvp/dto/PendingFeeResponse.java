@@ -1,5 +1,6 @@
 package com.linkbit.mvp.dto;
 
+import com.linkbit.mvp.domain.ActorType;
 import com.linkbit.mvp.domain.PlatformFeeStatus;
 import lombok.Builder;
 import lombok.Data;
@@ -14,5 +15,6 @@ public class PendingFeeResponse {
     private UUID feeId;
     private BigDecimal amountInr;
     private PlatformFeeStatus status;
+    private ActorType payerRole;
     private LocalDateTime createdAt;
 }

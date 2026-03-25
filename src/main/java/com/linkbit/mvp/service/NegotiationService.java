@@ -57,13 +57,18 @@ public class NegotiationService {
         loan.setMarginCallLtvPercent(request.getMarginCallLtvPercent());
         loan.setLiquidationLtvPercent(request.getLiquidationLtvPercent());
         
+        // Recalculate repayment details immediately
+        calculateRepayment(loan);
+        
         // Reset finalization flags on any term update
         loan.setLenderFinalized(false);
         loan.setBorrowerFinalized(false);
         
-        loanRepository.save(loan);
+        loanRepository.saveAndFlush(loan);
 
-        chatService.sendSystemMessage(loanId, "SYSTEM: Terms updated by " + lender.getPseudonym());
+        String termsSummary = String.format("Principal: ₹%s, Rate: %s%%, Tenure: %d days", 
+            request.getPrincipalAmount(), request.getInterestRate(), request.getTenureDays());
+        chatService.sendSystemMessage(loanId, "SYSTEM: Terms updated by " + lender.getPseudonym() + ". " + termsSummary);
     }
 
     @Transactional

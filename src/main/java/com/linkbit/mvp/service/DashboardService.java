@@ -1,5 +1,6 @@
 package com.linkbit.mvp.service;
 
+import com.linkbit.mvp.domain.ActorType;
 import com.linkbit.mvp.domain.Loan;
 import com.linkbit.mvp.domain.LoanRepayment;
 import com.linkbit.mvp.domain.LoanStatus;
@@ -130,8 +131,13 @@ public class DashboardService {
 
     private LoanDetailResponse toDetail(Loan loan, String role) {
         var escrowAccount = escrowAccountRepository.findByLoanId(loan.getId()).orElse(null);
-        var pendingFee = platformFeeRepository
-                .findTopByLoanIdAndStatusInOrderByCreatedAtDesc(loan.getId(), List.of(PlatformFeeStatus.PENDING))
+        var borrowerFee = platformFeeRepository
+                .findTopByLoanIdAndPayerRoleAndStatusInOrderByCreatedAtDesc(loan.getId(), ActorType.BORROWER, List.of(PlatformFeeStatus.PENDING, PlatformFeeStatus.SUCCESS))
+                .map(this::toPendingFee)
+                .orElse(null);
+
+        var lenderFee = platformFeeRepository
+                .findTopByLoanIdAndPayerRoleAndStatusInOrderByCreatedAtDesc(loan.getId(), ActorType.LENDER, List.of(PlatformFeeStatus.PENDING, PlatformFeeStatus.SUCCESS))
                 .map(this::toPendingFee)
                 .orElse(null);
 
@@ -176,7 +182,8 @@ public class DashboardService {
                 .collateralReleasedAt(loan.getCollateralReleasedAt())
                 .escrowAddress(escrowAccount != null ? escrowAccount.getEscrowAddress() : null)
                 .escrowBalanceSats(escrowAccount != null ? escrowAccount.getCurrentBalanceSats() : null)
-                .pendingFee(pendingFee)
+                .borrowerFee(borrowerFee)
+                .lenderFee(lenderFee)
                 .pendingRepayments(pendingRepayments)
                 .build();
     }
@@ -186,6 +193,7 @@ public class DashboardService {
                 .feeId(fee.getId())
                 .amountInr(fee.getAmountInr())
                 .status(fee.getStatus())
+                .payerRole(fee.getPayerRole())
                 .createdAt(fee.getCreatedAt())
                 .build();
     }

@@ -134,6 +134,9 @@ public class LoanLifecycleIntegrationTest {
         
         negotiationService.updateTerms(lenderEmail, loanId, utr);
         negotiationService.finalizeContract(lenderEmail, loanId);
+        assertEquals(LoanStatus.NEGOTIATING, getLoan(loanId).getStatus()); // Still negotiating until both agree
+        
+        negotiationService.finalizeContract(borrowerEmail, loanId);
         assertEquals(LoanStatus.AWAITING_SIGNATURES, getLoan(loanId).getStatus());
 
         // 4. Sign (Both)
@@ -141,9 +144,13 @@ public class LoanLifecycleIntegrationTest {
         negotiationService.signContract(lenderEmail, loanId, "SIG_LENDER");
         assertEquals(LoanStatus.AWAITING_FEE, getLoan(loanId).getStatus());
 
-        // 5. Pay Fee (Borrower)
-        FeeResponse fee = paymentService.initiateFeePayment(borrowerEmail, loanId);
-        paymentService.verifyPayment(fee.getFeeId());
+        // 5. Pay Fee (Dual)
+        FeeResponse bFee = paymentService.initiateFeePayment(borrowerEmail, loanId);
+        paymentService.verifyPayment(bFee.getFeeId());
+        assertEquals(LoanStatus.AWAITING_FEE, getLoan(loanId).getStatus()); // Still awaiting lender
+
+        FeeResponse lFee = paymentService.initiateFeePayment(lenderEmail, loanId);
+        paymentService.verifyPayment(lFee.getFeeId());
         assertEquals(LoanStatus.AWAITING_COLLATERAL, getLoan(loanId).getStatus());
 
         // 6. Deposit Collateral (Borrower)
@@ -346,10 +353,13 @@ public class LoanLifecycleIntegrationTest {
 
         negotiationService.updateTerms(lenderEmail, loanId, utr);
         negotiationService.finalizeContract(lenderEmail, loanId);
+        negotiationService.finalizeContract(borrowerEmail, loanId);
         negotiationService.signContract(borrowerEmail, loanId, "SIG_B");
         negotiationService.signContract(lenderEmail, loanId, "SIG_L");
-        FeeResponse fee = paymentService.initiateFeePayment(borrowerEmail, loanId);
-        paymentService.verifyPayment(fee.getFeeId());
+        FeeResponse bFee = paymentService.initiateFeePayment(borrowerEmail, loanId);
+        paymentService.verifyPayment(bFee.getFeeId());
+        FeeResponse lFee = paymentService.initiateFeePayment(lenderEmail, loanId);
+        paymentService.verifyPayment(lFee.getFeeId());
         escrowService.generateAddress(borrowerEmail, loanId);
         escrowService.deposit(borrowerEmail, loanId, new BigDecimal("0.5"));
         escrowService.verifyDeposit(loanId);

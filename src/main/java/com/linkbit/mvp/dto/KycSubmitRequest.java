@@ -5,6 +5,9 @@ import lombok.Data;
 
 @Data
 public class KycSubmitRequest {
+    @NotBlank(message = "Full Legal Name is required")
+    private String fullLegalName;
+
     @NotBlank(message = "Bank Account Number is required")
     private String bankAccountNumber;
 
